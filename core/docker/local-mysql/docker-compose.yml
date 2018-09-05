@@ -1,9 +1,9 @@
-version: '2.1'
+version: '3.5'
 
 services:
   #Mura Server
   mura_mysql_cfml:
-    image: ortussolutions/commandbox:adobe2016
+    image: ortussolutions/commandbox:latest
     depends_on:
       - mura_mysql
     environment:
@@ -11,7 +11,7 @@ services:
       SSL_PORT: 8443
       URL_REWRITES: "true"
       HEAPSIZE: 1024
-      #CFENGINE: lucee@5
+      CFENGINE: adobe@2016
       CFCONFIG_ADMINPASSWORD: NOT_SECURE_CHANGE
       MURA_ADMIN_USERNAME: admin
       MURA_ADMIN_PASSWORD: admin
@@ -23,16 +23,21 @@ services:
       MURA_DBCONNECTIONSTRING: "jdbc:mysql://mura_mysql:3306/muradb?useUnicode=true&characterEncoding=UTF-8&useLegacyDatetimeCode=true"
       MURA_DBCLASS: com.mysql.jdbc.Driver
       MURA_DBUSERNAME: root
-      MURA_DBPASSWORD: NOT_SECURE_CHANGE
+      MURA_DBPASSWORD: FROM_ENV
       MURA_DBHOST: mura_mysql
       MURA_DBPORT: 3306
       MURA_SITEIDINURLS: "false"
       MURA_INDEXFILEINURLS: "false"
       MURA_TESTBOX: "true"
+      MURA_PROJECT_SECRETS: projectsecrets
+      MURA_GLOBAL_SECRETS: globalsecrets
     volumes:
-        - ../../../:/app
+      - ../../../:/app
     ports:
-        - "8080:8080"
+      - "8080:8080"
+    secrets:
+      - projectsecrets
+      - globalsecrets
 
   #MySQL
   mura_mysql:
@@ -47,3 +52,9 @@ services:
 
 volumes:
     mura_mysql_data:
+
+secrets:
+  projectsecrets:
+    file: ./projectsecrets.json
+  globalsecrets:
+    file: ./globalsecrets.json

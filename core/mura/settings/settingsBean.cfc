@@ -635,16 +635,16 @@ component extends="mura.bean.beanExtendable" entityName="site" table="tsettings"
 		return variables.instance.javaLocale;
 	}
 
-	public function getRBFactory(baseFactory='') output=false {
-		if ( !isObject(variables.instance.rbFactory) ) {
+	public function getRBFactory() output=false {
+		if (!isObject(variables.instance.rbFactory)) {
 
-			if(isDefined('arguments.baseFactory') && isObject(arguments.baseFactory)){
-				var tmpFactory = arguments.baseFactory;
+			if(isDefined('request.muraBaseRBFactory') && isObject(request.muraBaseRBFactory)){
+					var tmpFactory = request.muraBaseRBFactory;
 			} else {
 				//Get core admin RB factory
-				if ( !isDefined('application.rbFactory') ) {
+				if (!isDefined('application.rbFactory') ) {
 					variables.tracepoint = initTracepoint("Instantiating resourceBundleFactory");
-					application.rbFactory = new mura.resourceBundle.resourceBundleFactory(expandPath("/mura/resourceBundle/resourceBundles"));
+					application.rbFactory = new mura.resourceBundle.resourceBundleFactory();
 					commitTracepoint(variables.tracepoint);
 				}
 
@@ -679,18 +679,21 @@ component extends="mura.bean.beanExtendable" entityName="site" table="tsettings"
 				//Get theme level RB factory
 				var themeRBDir1=expandPath(getThemeIncludePath()) & "/resourceBundles/";
 				var themeRBDir2=expandPath(getThemeIncludePath()) & "/resource_bundles/";
+
 				if ( directoryExists(themeRBDir1) ) {
 					tmpFactory = createObject("component","mura.resourceBundle.resourceBundleFactory").init(tmpFactory,themeRBDir1,getJavaLocale());
 				} else if ( directoryExists(themeRBDir2) ) {
 					tmpFactory = createObject("component","mura.resourceBundle.resourceBundleFactory").init(tmpFactory,themeRBDir2,getJavaLocale());
 				}
+
+				variables.instance.rbFactory = tmpFactory;
+				//writeDump(getKey("layout.contentmanager"));abort;
+				//Additional module level RB factories will be added when discovering modules
+			} else {
+				variables.instance.rbFactory = tmpFactory;
 			}
 
-			variables.instance.rbFactory = tmpFactory;
-
-			//Additional module level RB factories will be added when discovering modules
 		}
-
 		return variables.instance.rbFactory;
 	}
 
@@ -1630,7 +1633,7 @@ component extends="mura.bean.beanExtendable" entityName="site" table="tsettings"
 		return variables.instance.contentTypeLoopUpArray;
 	}
 
-	public function registerContentTypeDir(dir) output=false {
+	public function registerContentTypeDir(dir,package="") output=false {
 		var rs="";
 		var config="";
 		var expandedDir=expandPath(arguments.dir);

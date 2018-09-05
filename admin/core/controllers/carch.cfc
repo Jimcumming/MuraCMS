@@ -86,22 +86,24 @@ component extends="controller" output="false" {
 			} else if ( !len(arguments.rc.moduleid) ) {
 				arguments.rc.moduleid=session.moduleid;
 			}
-			if ( !structKeyExists(session,'00000000000000000000000000000000000') ) {
-				session['00000000000000000000000000000000000']={topid="00000000000000000000000000000000001"};
+			if ( !structKeyExists(session,'m00000000000000000000000000000000000') ) {
+				session['m00000000000000000000000000000000000']={topid="00000000000000000000000000000000001"};
 			}
-			if ( !structKeyExists(session,'00000000000000000000000000000000003') ) {
-				session['00000000000000000000000000000000003']={topid="00000000000000000000000000000000003"};
+			if ( !structKeyExists(session,'m00000000000000000000000000000000003') ) {
+				session['m00000000000000000000000000000000003']={topid="00000000000000000000000000000000003"};
 			}
-			if ( !structKeyExists(session,'00000000000000000000000000000000004') ) {
-				session['00000000000000000000000000000000004']={topid="00000000000000000000000000000000004"};
+			if ( !structKeyExists(session,'m00000000000000000000000000000000004') ) {
+				session['m00000000000000000000000000000000004']={topid="00000000000000000000000000000000004"};
 			}
-			if ( !structKeyExists(session,'00000000000000000000000000000000099') ) {
-				session['00000000000000000000000000000000099']={topid="00000000000000000000000000000000099"};
+			if ( !structKeyExists(session,'m00000000000000000000000000000000099') ) {
+				session['m00000000000000000000000000000000099']={topid="00000000000000000000000000000000099"};
 			}
+
 			if ( !isDefined("arguments.rc.topid") || !len(arguments.rc.topid) ) {
-				arguments.rc.topid=session['#session.moduleid#'].topid;
+				arguments.rc.topid=session['m#session.moduleid#'].topid;
 			}
-			session['#session.moduleid#']={topid=arguments.rc.topid};
+
+			session['m#session.moduleid#']={topid=arguments.rc.topid};
 		}
 	}
 
@@ -276,9 +278,22 @@ component extends="controller" output="false" {
 	}
 
 	public function editLive(rc) output=false {
-		var content=arguments.rc.$.getBean('content').loadBy(contentid=arguments.rc.contentid,siteid=arguments.rc.siteid);
+		param name="arguments.rc.type" default='';
+		param name="arguments.rc.title" default='';
+
+		if(len(arguments.rc.title)){
+			if(listFindNoCase('form,component',arguments.rc.type)){
+				var content=arguments.rc.$.getBean('content').loadBy(title=arguments.rc.title,siteid=arguments.rc.siteid,type=arguments.rc.type);
+			} else {
+				var content=arguments.rc.$.getBean('content').loadBy(title=arguments.rc.title,siteid=arguments.rc.siteid);
+			}
+		} else {
+			var content=arguments.rc.$.getBean('content').loadBy(contentid=arguments.rc.contentid,siteid=arguments.rc.siteid);
+		}
 		content.setType(arguments.rc.type);
+
 		location(url="#content.getEditURL(compactDisplay='true')#&instanceid=#esapiEncode('url',arguments.rc.instanceid)#", addtoken=false );
+
 	}
 
 	public function edit(rc) output=false {

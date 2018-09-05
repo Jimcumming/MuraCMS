@@ -114,6 +114,12 @@ if ( isDefined("onApplicationStart") ) {
 	}
 }
 
+/* Potentially Clear Out Secrets, also in onApplicationStart_include
+for(secret in listToArray(structKeyList(request.muraSecrets))){
+	structDelete(request.muraSysEnv,'#secret#');
+}
+*/
+
 application.userManager.setUserStructDefaults();
 sessionData=application.userManager.getSession();
 if ( isDefined("url.showTrace") && isBoolean(url.showTrace) ) {
@@ -143,7 +149,7 @@ if (getSystemEnvironmentSetting('MURA_ENABLEDEVELOPMENTSETTINGS') == "true" && s
 	variables.allSitesEDS = application.settingsManager.getSites();
 	for (variables.siteEDS in variables.allSitesEDS) {
 		variables.allSitesEDS[variables.siteEDS].setEnableLockdown('');
-		variables.allSitesEDS[variables.siteEDS].setUseSSL('');
+		variables.allSitesEDS[variables.siteEDS].setUseSSL(0);
 	}
 }
 
@@ -270,9 +276,13 @@ if (
 application.pluginManager.executeScripts('onGlobalRequestStart');
 
 // HSTS: https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security
+local.HSTSMaxAge=application.configBean.getValue(property='HSTSMaxAge',defaultValue=1200);
+
+if(local.HSTSMaxAge){
 	getPageContext()
 		.getResponse()
 		.setHeader('Strict-Transport-Security', 'max-age=#application.configBean.getValue(property='HSTSMaxAge',defaultValue=1200)#');
+}
 
 	getPageContext()
 		.getResponse()

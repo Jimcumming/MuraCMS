@@ -10,8 +10,6 @@
 <script src="#$.globalConfig('rootPath')#/core/vendor/vue/vue.js"></script>
 <script src="#$.globalConfig('rootPath')#/admin/assets/js/scaffold/scaffolder.js"></script>
 
-<div id="load-spin" style="display: none;"><div id="load-spin-spinner"></div></div>
-
 <div class="block-content">
 
 	<div id="container-scaffold">
@@ -69,6 +67,7 @@
 	</template>
 
 	<template id="scaffold-list-template">
+
 		<div>
 			<div class="btn-group pull-right">
 				<a v-if="currentparent && currentparent.properties" @click="showForm(currentparent.properties.entityname,currentparent.properties.id)" class="btn"><i class="mi-arrow-circle-left"></i> Back</a>
@@ -80,6 +79,8 @@
 					</span>
 				</cfif>
 			</div> <!-- /.btn-group -->
+
+
 
 			<span v-if="entityname">
 				<ul class="breadcrumb" v-if="entityname=='entity'">
@@ -95,12 +96,10 @@
 						</li>
 				</ul>
 			</span>
-
+			<div  v-if="!data.list" class="scaffolder-list-entity-loader"><div class="load-inline"></div></div>
 			<div v-if="data.list">
 				<table width="100%" class="table table-striped table-condensed table-bordered mura-table-grid" id="scaffold-table">
-
 					<thead>
-
 						<tr id="scaffold-filterby">
 							<th class="actions"></th>
 							<th class="var-width" v-for="item in data.listview">
@@ -124,10 +123,9 @@
 							<th v-if="entityname == 'entity'">Dynamic</th>
 							<th v-else></th>
 						</tr>
-
 					</thead>
 					<tbody>
-						<tr v-if="data.list.length" v-for="(object,index) in data.list">
+						<tr v-if="data.list.length && !listtransition" v-for="(object,index) in data.list">
 								<td class="actions">
 								<a class="show-actions" href="javascript:;" <!---ontouchstart="this.onclick();"---> onclick="showTableControls(this);"><i class="mi-ellipsis-v"></i></a>
 								<div class="actions-menu hide">
@@ -151,12 +149,14 @@
 										<span v-else v-text="object[item.name]"></span>
 								</td>
 								<td v-if="entityname == 'entity' && object.dynamic"><i class="mi-check"></i></td>
-								<td v-else></td>
+								<td v-else><i class="mi-minus"></i></td>
 						</tr>
 					</tbody>
 				</table>
 
-				<div v-if="!data.list.length" class="help-block-empty">No items available.</div>
+				<div v-if="listtransition" class="scaffolder-list-transition-loader"><div class="load-inline"></div></div>
+
+				<div v-if="!data.list.length && !listtransition" class="help-block-empty">No items available.</div>
 
 				<span v-if="entityname != 'entity'">
 					<span v-if="currentparent && currentparent.properties">
@@ -357,6 +357,7 @@
 					:name="property.name"
 					:data-validate="property.validate ? property.validate : null"
 					:data-validate-message="property.validatemessage ? property.validatemessage : null"
+					rows="10"
 					>{{model[property.name] ? model[property.name] : property.default}}</textarea>
 			</div>
 		</div>
@@ -374,7 +375,7 @@
 					:name="property.name"
 					:data-validate="property.validate ? property.validate : null"
 					:data-validate-message="property.validatemessage ? property.validatemessage : null"
-					>{{model[property.name] ? model[property.name] : property.default}}</textarea>
+					rows="10">{{model[property.name] ? model[property.name] : property.default}}</textarea>
 			</div>
 		</div>
 	</template>

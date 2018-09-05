@@ -202,7 +202,7 @@ Mura(function() {
 								data.collection = collection;
 								data.list=collection.getAll().items;
 								data.links=collection.getAll().links;
-
+								data.loaded=true;
 								listener(data);
 							});
 						});
@@ -523,13 +523,23 @@ Mura(function() {
 	,
 	});
 
-
 	Vue.component('scaffold-list-template', {
 		template: '#scaffold-list-template',
 		props: ['entityname','data','state','currentparent','issuperuser'],
 		mounted: function() {
 			// processes related 'many' children
 			this.$parent.state = [];
+			this.entityTransitionLoader();
+		},
+		data:function(){
+			return {
+				listtransition:false
+			}
+		},
+		watch: {
+			 data: function () {
+				 this.listtransition=false;
+			 }
 		},
 		methods: {
 			openEndpoint:function(){
@@ -539,6 +549,14 @@ Mura(function() {
 					window.open(MuraScaffold.getEndpoint() + this.$props.entityname, '_blank');
 				}
 			},
+			entityTransitionLoader:function(){
+				delete this.data.list;
+				setTimeout(function(){$('.scaffolder-list-entity-loader > .load-inline').spin(spinnerArgs2);},10)
+			},
+			listTransitionLoader:function(){
+				this.listtransition=true;
+				setTimeout(function(){$('.scaffolder-list-transition-loader  > .load-inline').spin(spinnerArgs2);},10)
+			},
 			goToAssembler: function(entityname){
 				location.href="./?muraAction=scaffold.assembler&entityname=" + entityname;
 			},
@@ -546,28 +564,37 @@ Mura(function() {
 				Scaffolder.showForm(entityname,entityid,parentid);
 			},
 			applyFilter: function( event ) {
+				this.listTransitionLoader();
 				Scaffolder.applyFilter( event );
 			},
 			removeFilter:function(){
 			  Mura(".filter").val('');
+				this.listTransitionLoader();
 			  Scaffolder.applyFilter();
 			},
 			applyKeyFilter: function( event ) {
-				Scaffolder.applyKeyFilter( event );
+				if(event.keyCode == 13){
+					this.listTransitionLoader();
+					Scaffolder.applyKeyFilter( event );
+				}
 			},
 			applySortBy: function( col ) {
+				this.listTransitionLoader();
 				Scaffolder.applySortBy( col );
 			},
 			applyPage: function( action ) {
+				this.listTransitionLoader();
 				Scaffolder.applyPage( action );
 			},
 			applyItemsPer: function( e ) {
+				this.listTransitionLoader();
 				Scaffolder.applyItemsPer( e.target.value );
 			},
 			showAll: function() {
-				Scaffolder.showList('entity');
+				this.showList('entity');
 			},
 			showList: function(name) {
+				this.entityTransitionLoader();
 				Scaffolder.showList(name);
 			},
 			formatDate:function(dateString){
@@ -593,7 +620,6 @@ Mura(function() {
 		props: ['property','model','entity','mparent','properties'],
 		mounted: function() {
 			// processes related 'many' children
-			this.loaded=false;
 
 			MuraScaffold.feed( this.proplist,this.property.relatesto );
 		},
@@ -753,7 +779,8 @@ Mura(function() {
 			entityid: "",
 			currentView: 'scaffold-form-template',
 			currentparent: {},
-			issuperuser:window.IsSuperUser
+			issuperuser:window.IsSuperUser,
+			listtransition:false
 		},
 		mounted: function() {
 			//this.hide();
@@ -958,7 +985,8 @@ Mura(function() {
 				MuraScaffold.feed( this.doList,entityname,this.itemsper,this.sortBy,this.sortDir );
 			},
 			doList: function( data ) {
-				this.data = data;
+				data.listtransition=false;
+				this.data=data;
 				this.data.issuperuser=window.IsSuperUser;
 				this.currentView = 'scaffold-list-template';
 			},
@@ -1018,7 +1046,7 @@ Mura(function() {
 			},
 			applyKeyFilter: function( e ) {
 				if(e.keyCode == 13){
-					MuraScaffold.this.currentView = 'scaffold-form-template';( this.doList,this.entityname,this.itemsper,this.sortBy,this.sortDir );
+					MuraScaffold.feed( this.doList,this.entityname,this.itemsper,this.sortBy,this.sortDir );
 				}
 			},
 			applyItemsPer: function( itemsper ) {

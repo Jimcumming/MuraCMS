@@ -173,6 +173,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset variables.instance.adManager=false/>
 <cfset variables.instance.emailBroadcaster=false/>
 <cfset variables.instance.allowSimpleHTMLForms=true/>
+<cfset variables.instance.manageSessionCookies=true/>
 <cfset variables.instance.securecookies=false/>
 <cfset variables.instance.sessioncookiesexpires="never"/>
 <cfset variables.instance.cookiedomain=""/>
@@ -193,6 +194,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset variables.instance.siteDir=""/>
 <cfset variables.instance.legacyAppcfcSupport=false>
 <cfset variables.instance.showUsageTags=true>
+<cfset variables.instance.offline404=true>
 
 <cffunction name="OnMissingMethod" output="false" hint="Handles missing method exceptions.">
 <cfargument name="MissingMethodName" type="string" required="true" hint="The name of the missing method." />
@@ -404,7 +406,11 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 </cffunction>
 
 <cffunction name="getReadOnlyDbUsername" output="false">
-	<cfreturn variables.instance.readOnlyDbUsername />
+	<cfif len(variables.instance.readOnlyDbPassword)>
+		<cfreturn variables.instance.readOnlyDbUsername />
+	<cfelse>
+		<cfreturn ''>
+	</cfif>
 </cffunction>
 
 <cffunction name="setReadOnlyDbUsername" output="false">
@@ -596,7 +602,11 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 
 <cffunction name="getDbUsername" output="false">
 	<cfargument name="mode" default="" />
-	<cfreturn variables.instance.dbUsername />
+	<cfif len(variables.instance.DbPassword)>
+		<cfreturn variables.instance.DbUsername />
+	<cfelse>
+		<cfreturn ''>
+	</cfif>
 </cffunction>
 
 <cffunction name="setDbUsername" output="false">
@@ -1718,10 +1728,8 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 				 password=getReadOnlyDbPassword()},
 				 false)>
 
-		<cfif not len(arguments.username)>
+		<cfif not (len(arguments.username) and len(arguments.password))>
 			<cfset structDelete(arguments,'username')>
-		</cfif>
-		<cfif not len(arguments.password)>
 			<cfset structDelete(arguments,'password')>
 		</cfif>
 	</cfif>
@@ -2029,6 +2037,12 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 </cffunction>
 
 <cfscript>
+
+//Make sure queries set with configBean don't act like Mura ORN customDatasoure.
+function hasCustomDatasource(){
+	return false;
+}
+
 function addEventHandler(component){
 	if(!isObject(arguments.component) && isStruct(arguments.component)){
 		for(var e in arguments.component){

@@ -103,38 +103,42 @@ if ( application.setupComplete ) {
 
 	for(variables.p in listToArray(variables.iniSections.settings)){
 		variables.envVar='MURA_#UCASE(variables.p)#';
-		if ( structKeyExists(request.muraSysEnv,variables.envVar) ) {
-			variables.iniProperties[variables.p]=request.muraSysEnv[variables.envVar];
-		} else {
-			variables.iniProperties[variables.p]=getProfileString("#variables.basedir#/config/settings.ini.cfm","settings",variables.p);
-		}
-		if ( left(variables.iniProperties[variables.p],2) == "${"
-					and right(variables.iniProperties[variables.p],1) == "}" ) {
-			variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-3);
-			variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
-		} else if ( left(variables.iniProperties[variables.p],2) == "{{"
-					and right(variables.iniProperties[variables.p],2) == "}}" ) {
-			variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-4);
-			variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
-		}
+		//if(!structKeyExists(request.muraSecrets,variables.envVar)){
+			if ( structKeyExists(request.muraSysEnv,variables.envVar) ) {
+				variables.iniProperties[variables.p]=request.muraSysEnv[variables.envVar];
+			} else {
+				variables.iniProperties[variables.p]=getProfileString("#variables.basedir#/config/settings.ini.cfm","settings",variables.p);
+			}
+			if ( left(variables.iniProperties[variables.p],2) == "${"
+						and right(variables.iniProperties[variables.p],1) == "}" ) {
+				variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-3);
+				variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
+			} else if ( left(variables.iniProperties[variables.p],2) == "{{"
+						and right(variables.iniProperties[variables.p],2) == "}}" ) {
+				variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-4);
+				variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
+			}
+		//}
 	}
 
 	for(variables.p in listToArray(variables.iniSections[ variables.iniProperties.mode])){
 		variables.envVar='MURA_#UCASE(variables.p)#';
-		if ( structKeyExists(request.muraSysEnv,variables.envVar) ) {
-			variables.iniProperties[variables.p]=request.muraSysEnv[variables.envVar];
-		} else {
-			variables.iniProperties[variables.p]=getProfileString("#variables.basedir#/config/settings.ini.cfm", variables.iniProperties.mode,variables.p);
-		}
-		if ( left(variables.iniProperties[variables.p],2) == "${"
-					and right(variables.iniProperties[variables.p],1) == "}" ) {
-			variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-3);
-			variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
-		} else if ( left(variables.iniProperties[variables.p],2) == "{{"
-					and right(variables.iniProperties[variables.p],2) == "}}" ) {
-			variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-4);
-			variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
-		}
+		//if(!structKeyExists(request.muraSecrets,variables.envVar)){
+			if ( structKeyExists(request.muraSysEnv,variables.envVar) ) {
+				variables.iniProperties[variables.p]=request.muraSysEnv[variables.envVar];
+			} else {
+				variables.iniProperties[variables.p]=getProfileString("#variables.basedir#/config/settings.ini.cfm", variables.iniProperties.mode,variables.p);
+			}
+			if ( left(variables.iniProperties[variables.p],2) == "${"
+						and right(variables.iniProperties[variables.p],1) == "}" ) {
+				variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-3);
+				variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
+			} else if ( left(variables.iniProperties[variables.p],2) == "{{"
+						and right(variables.iniProperties[variables.p],2) == "}}" ) {
+				variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-4);
+				variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
+			}
+		//}
 	}
 
 
@@ -145,6 +149,12 @@ if ( application.setupComplete ) {
 		}
 	} catch (any cfcatch) {
 	}
+
+	/* Potentially Clear Out Secrets, also in onRequestStart_include
+	for(secret in listToArray(structKeyList(request.muraSecrets))){
+		structDelete(request.muraSysEnv,'#secret#');
+	}
+	*/
 
 	variables.iniProperties.webroot = expandPath("/muraWRM");
 	variables.mode = variables.iniProperties.mode;
@@ -689,7 +699,7 @@ if ( application.setupComplete ) {
 
 	projectSiteID=application.configBean.getValue(property='ProjectSiteID',defaultValue='default');
 
-	if(!application.settingsManager.siteExists(projectSiteID)){
+	if(projectSiteID != 'default'  && !application.settingsManager.siteExists(projectSiteID)){
 
 		domain=listFirst(cgi.http_host,":");
 
@@ -701,10 +711,11 @@ if ( application.setupComplete ) {
 			siteid=projectSiteID,
 			domain=domain,
 			site=application.configBean.getValue(property='title',defaultValue='Mura CMS'),
-			orderno=1
+			orderno=1,
+			autocreated=true
 			});
 
-		if(projectSiteID != 'default'){
+		if(projectSiteID != 'default' && application.settingsManager.getSite('default').getOrderNo() lt 2){
 			application.settingsManager.update({
 				siteid='default',
 				orderno=2
@@ -870,6 +881,27 @@ if ( application.setupComplete ) {
 		}
 	}
 	commitTracePoint(variables.tracePoint);
+
+	//These were added to remove previous resource bundles tha were two specific
+	if(fileExists(expandPath("/murawrm/core/mura/resourceBundle/resources/en_US.properties"))){
+		local.fileWriter=application.Mura.getBean('fileWriter');
+		local.rs=application.Mura.getBean('fileWriter').getDirectoryList(expandPath("/murawrm/core/mura/resourceBundle/resources/"));
+		for(local.i=1;local.i <= local.rs.recordcount;local.i++){
+			if(listLen(listFirst(local.rs.name[local.i],'.'),'_') > 1){
+				fileDelete(local.rs.directory[local.i] & "/" & local.rs.name[local.i]);
+			}
+		}
+	}
+
+	if(fileExists(expandPath("/murawrm/core/modules/v1/core_assets/resource_bundles/en_US.properties"))){
+		local.fileWriter=application.Mura.getBean('fileWriter');
+		local.rs=application.Mura.getBean('fileWriter').getDirectoryList(expandPath("/murawrm/core/modules/v1/core_assets/resource_bundles/"));
+		for(local.i=1;local.i <= local.rs.recordcount;local.i++){
+			if(listLen(listFirst(local.rs.name[local.i],'.'),'_') > 1 && !listFind('zh_TW.properties,zh_CN.properties',local.rs.name[local.i])){
+				fileDelete(local.rs.directory[local.i] & "/" & local.rs.name[local.i]);
+			}
+		}
+	}
 
 	application.sessionTrackingThrottle=false;
 

@@ -639,13 +639,13 @@ function leftJoin(entityName) output=false {
 	var p="";
 	for ( p in entity.getHasManyPropArray() ) {
 		if ( p.cfc == arguments.relatedEntity ) {
-			addJoin('inner',application.objectMappings[arguments.relatedEntity].table,'#entity.getTable()#.#entity.getValue(entity.translatePropKey(p.column))#=#application.objectMappings[arguments.relatedEntity].table#.#entity.translatePropKey(p.loadkey)#');
+			addJoin('left',application.objectMappings[arguments.relatedEntity].table,'#entity.getTable()#.#entity.getValue(entity.translatePropKey(p.column))#=#application.objectMappings[arguments.relatedEntity].table#.#entity.translatePropKey(p.loadkey)#');
 			return this;
 		}
 	}
 	for ( p in entity.getHasOnePropArray() ) {
 		if ( p.cfc == arguments.relatedEntity ) {
-			addJoin('inner',application.objectMappings[arguments.relatedEntity].table,'#entity.getTable()#.#entity.getValue(entity.translatePropKey(p.column))#=#application.objectMappings[arguments.relatedEntity].table#.#entity.translatePropKey(p.loadkey)#');
+			addJoin('left',application.objectMappings[arguments.relatedEntity].table,'#entity.getTable()#.#entity.getValue(entity.translatePropKey(p.column))#=#application.objectMappings[arguments.relatedEntity].table#.#entity.translatePropKey(p.loadkey)#');
 			return this;
 		}
 	}
@@ -706,12 +706,16 @@ function transformFields(fields){
 function transformFieldName(fieldname){
 	arguments.fieldname=trim(arguments.fieldname);
 
+	if(arguments.fieldname==application.objectMappings[getEntityName()].table & ".*"){
+		return arguments.fieldname;
+	}
+
 	if ( listLen(arguments.fieldname,'.') == 2 ) {
 		var fieldArray=listToArray(arguments.fieldname,'.');
 		if(structKeyExists(application.objectMappings,fieldArray[1])){
 			arguments.fieldname=application.objectMappings[fieldArray[1]].table & '.' & fieldArray[2];
 		}
-	} else {
+	} else if(structKeyExists(application.objectMappings[getEntityName()],arguments.fieldname)){
 		arguments.fieldname=application.objectMappings[getEntityName()].table & '.' & arguments.fieldname;
 	}
 
@@ -792,6 +796,7 @@ function getEndRow() output=false {
 	<cfset var jointableS="">
 	<cfset var dbType=getDbType()>
 	<cfset var tableModifier="">
+	<cfset var transformCriteria="">
 
 	<cfif getDbType() eq "MSSQL">
 		<cfset tableModifier="with (nolock)">
@@ -891,19 +896,10 @@ function getEndRow() output=false {
 				and #variables.instance.table#.lastupdate=activeTable.lastupdatemax
 			 )
 		</cfif>
+
 		<!--- Join to implied tables based on field prefix --->
 		<cfloop list="#jointables#" index="jointable">
-			<cfset started=false>
-			<cfif arrayLen(variables.instance.jointables)>
-				<cfloop from="1" to="#arrayLen(variables.instance.joins)#" index="local.i">
-					<cfif variables.instance.joins[local.i].table eq jointable>
-						<cfset started=true>
-						<!--- has explicit join clause--->
-						<cfbreak>
-					</cfif>
-				</cfloop>
-			</cfif>
-			<cfif not started>
+			<cfif not hasJoin(jointable)>
 				inner join #jointable# on (#variables.instance.table#.#variables.instance.keyField#=#jointable#.#variables.instance.keyField#)
 			</cfif>
 		</cfloop>
@@ -927,7 +923,7 @@ function getEndRow() output=false {
 		</cfif>
 
 		<cfif variables.instance.params.recordcount>
-		<cfset started = false />
+		<cfset started = false>
 		<cfloop query="variables.instance.params">
 			<cfset param=createObject("component","mura.queryParam").init(variables.instance.params.relationship,
 					variables.instance.params.field,
@@ -958,22 +954,50 @@ function getEndRow() output=false {
 					<cfset openGrouping=true />
 				<cfelseif listFindNoCase("closeGrouping,)",param.getRelationship())>
 					)
-					<cfset openGrouping=false />
+					<cfset openGrouping=false>
 				<cfelseif not openGrouping>
 					#param.getRelationship()#
 				</cfif>
 
 				<cfset started = true />
+				<cfset isListParam=listFindNoCase("IN,NOT IN,NOTIN",param.getCondition())>
 
-				<cfset isListParam=listFindNoCase("IN,NOT IN",param.getCondition())>
 				<cfif len(param.getField())>
 					#param.getFieldStatement()#
 					<cfif param.getCriteria() eq 'null'>
 						#param.getCondition()# NULL
 					<cfelse>
-						#param.getCondition()# <cfif isListParam>(</cfif><cfqueryparam cfsqltype="cf_sql_#param.getDataType()#" value="#param.getCriteria()#" list="#iif(isListParam,de('true'),de('false'))#" null="#iif(param.getCriteria() eq 'null',de('true'),de('false'))#"><cfif isListParam>)</cfif>
+						#param.getCondition()#
+
+						<!---
+							Support to recognize if the param criteria is prefix with a table or entityname
+							Vague CF10 support
+						--->
+						<cfif listLen(param.getCriteria(),'.') eq 2>
+							<cfset transformCriteria=listToArray(param.getCriteria(),'.')>
+							<!--- Check if it's an entity make sure schema data is loaded --->
+							<cfif getServiceFactory().containsBean('#transformCriteria[1]#')>
+								<cfset local.related=getBean('#transformCriteria[1]#')>
+								<cfif isDefined('local.related.getFeed')>
+									<cfset local.related.getFeed().loadTableMetaData()>
+								</cfif>
+							</cfif>
+							<!--- Is it the name of an entity --->
+							<cfif structKeyExists(application.objectMappings,'#transformCriteria[1]#') and structKeyExists(application.objectMappings['#transformCriteria[1]#'].columns,'#transformCriteria[2]#')>
+								#application.objectMappings['#transformCriteria[1]#'].table#.#sanitizedValue(transformCriteria[2])#
+							<cfelse>
+								<!--- Is it the name of table that has been joined --->
+								<cfif application.objectMappings[ getEntityName()].table eq transformCriteria[1] or hasJoin(transformCriteria[1])>
+									#transformCriteria[1]#.#sanitizedValue(transformCriteria[2])#
+								<cfelse>
+									<cfif isListParam>(</cfif><cfqueryparam cfsqltype="cf_sql_#param.getDataType()#" value="#param.getCriteria()#" list="#iif(isListParam,de('true'),de('false'))#" null="#iif(param.getCriteria() eq 'null',de('true'),de('false'))#"><cfif isListParam>)</cfif>
+								</cfif>
+							</cfif>
+						<cfelse>
+							<cfif isListParam>(</cfif><cfqueryparam cfsqltype="cf_sql_#param.getDataType()#" value="#param.getCriteria()#" list="#iif(isListParam,de('true'),de('false'))#" null="#iif(param.getCriteria() eq 'null',de('true'),de('false'))#"><cfif isListParam>)</cfif>
+						</cfif>
 					</cfif>
-					<cfset openGrouping=false />
+					<cfset openGrouping=false>
 				</cfif>
 			</cfif>
 		</cfloop>

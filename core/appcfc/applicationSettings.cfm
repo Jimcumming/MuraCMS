@@ -70,6 +70,38 @@ param name="request.muraSessionManagement" default=true;
 param name="request.muraPointInTime" default="";
 param name="request.muraTemplateMissing" default=false;
 param name="request.muraSysEnv" default="#createObject('java','java.lang.System').getenv()#";
+param name="request.muraSecrets" default={};
+
+if (structKeyExists(request.muraSysEnv, "MURA_GLOBAL_SECRETS")) {
+    // Confirm that file exist and is JSON
+    if (fileExists('/run/secrets/' & request.muraSysEnv["MURA_GLOBAL_SECRETS"])) {
+        secrets = FileRead('/run/secrets/' & request.muraSysEnv["MURA_GLOBAL_SECRETS"]);
+				if(isJSON(secrets)){
+					secrets=deserializeJSON(secrets);
+		     	StructAppend(request.muraSecrets,secrets);
+				}
+    }
+}
+
+if (structKeyExists(request.muraSysEnv, "MURA_PROJECT_SECRETS")) {
+    // Confirm that file exist and is JSON
+    if (fileExists('/run/secrets/' & request.muraSysEnv["MURA_PROJECT_SECRETS"])) {
+        secrets = FileRead('/run/secrets/' & request.muraSysEnv["MURA_PROJECT_SECRETS"]);
+				if(isJSON(secrets)){
+					secrets=deserializeJSON(secrets);
+		     	StructAppend(request.muraSecrets,secrets);
+				}
+    }
+}
+
+if(!StructIsEmpty(request.muraSecrets)){
+	tempVars={};
+	structAppend(tempVars, request.muraSysEnv);
+	structAppend(tempVars, request.muraSecrets);
+	request.muraSysEnv = tempVars;
+}
+
+structDelete(request,'muraSecrets');
 
 request.muraInDocker=len(getSystemEnvironmentSetting('MURA_DATASOURCE'));
 this.configPath=getDirectoryFromPath(getCurrentTemplatePath());
@@ -140,7 +172,7 @@ this.mappings["/muraWRM"] = variables.baseDir;
 this.mappings["/config"] = variables.baseDir & "/config";
 this.mappings["/config/appcfc"] = variables.baseDir & "/core/appcfc";
 this.mappings["/core"] = variables.baseDir & "/core";
-this.mappings["/requirements"] = variables.baseDir & "/core/vender";
+this.mappings["/requirements"] = variables.baseDir & "/core/vendor";
 this.mappings["/mura"] = variables.baseDir & "/core/mura";
 this.mappings["/testbox"] = variables.baseDir & "/core/vendor/testbox";
 this.mappings["/docbox"] = variables.baseDir & "/core/vendor/docbox";
@@ -496,7 +528,7 @@ this.sameformfieldsasarray=evalSetting(getINIProperty('sameformfieldsasarray',fa
 
 // Custom Java library paths with dynamic loading
 try {
-	variables.loadPaths = ListToArray(getINIProperty('javaSettingsLoadPaths','#variables.baseDir#/core/vendor/lib'));
+	variables.loadPaths = listToArray(listPrepend('#variables.baseDir#/core/vendor/lib', getINIProperty('javaSettingsLoadPaths')));
 } catch(any e) {
 	variables.loadPaths = ['#variables.baseDir#/core/vendor/lib'];
 }
