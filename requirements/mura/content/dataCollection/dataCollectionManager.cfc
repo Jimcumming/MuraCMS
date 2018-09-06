@@ -211,12 +211,13 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfset var dbType=variables.configBean.getDbType() />
 
 		<cfquery attributeCollection="#variables.configBean.getReadOnlyQRYAttrs(name='rs')#">
-			select distinct formField from tformresponsequestions
-			where formID= <cfqueryparam cfsqltype="cf_sql_varchar" value="#arguments.formID#"/>
-			order by formField asc
+			SELECT responseDisplayFields
+			FROM tcontent
+			WHERE ContentID = <cfqueryparam cfsqltype="cf_sql_varchar" value="#arguments.formID#"/>
+			AND active = 1
 		</cfquery>
 
-		<cfreturn valueList(rs.formField) />
+		<cfreturn replace(rs.responseDisplayFields, "^", ",","all") />
 	</cffunction>
 
 	<cffunction name="getData" returntype="query" access="public" output="false">
