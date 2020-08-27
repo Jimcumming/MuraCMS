@@ -459,7 +459,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 			</cfif>
 
 			<cfif useCache>
-				<cfset key="filename" & arguments.siteid & arguments.filename  & arguments.type/>
+				<cfset key="filename" & arguments.siteid & lcase(arguments.filename)  & arguments.type/>
 
 				<!--- check to see if it is cached. if not then pass in the context --->
 				<!--- otherwise grab it from the cache --->
@@ -505,7 +505,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfargument name="use404" type="boolean" required="yes" default="false"/>
 		<cfargument name="contentBean" required="true" default="">
 		<cfargument name="type" required="yes" default=""/>
-		<cfset var key="remoteID" & arguments.siteid & arguments.remoteID  & arguments.type/>
+		<cfset var key="remoteID" & arguments.siteid & lcase(arguments.remoteID)  & arguments.type/>
 		<cfset var site=variables.settingsManager.getSite(arguments.siteid)/>
 		<cfset var cacheFactory=site.getCacheFactory(name="data")/>
 		<cfset var bean=arguments.contentBean/>
@@ -573,7 +573,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfargument name="use404" type="boolean" required="yes" default="false"/>
 		<cfargument name="contentBean" required="true" default="">
 		<cfargument name="type" required="yes" default=""/>
-		<cfset var key="title" & arguments.siteid & arguments.title  & arguments.type/>
+		<cfset var key="title" & arguments.siteid & lcase(arguments.title)  & arguments.type/>
 		<cfset var site=variables.settingsManager.getSite(arguments.siteid)/>
 		<cfset var cacheFactory=site.getCacheFactory(name="data")/>
 		<cfset var bean=arguments.contentBean/>
@@ -641,7 +641,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfargument name="use404" type="boolean" required="yes" default="false"/>
 		<cfargument name="contentBean" required="true" default="">
 		<cfargument name="type" required="yes" default=""/>
-		<cfset var key="urltitle" & arguments.siteid & arguments.urltitle  & arguments.type/>
+		<cfset var key="urltitle" & arguments.siteid & lcase(arguments.urltitle)  & arguments.type/>
 		<cfset var site=variables.settingsManager.getSite(arguments.siteid)/>
 		<cfset var cacheFactory=site.getCacheFactory(name="data")/>
 		<cfset var bean=arguments.contentBean/>
@@ -861,12 +861,14 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 
 	<cffunction name="formatRegionObjectsString" output="false">
 		<cfargument name="rs"/>
-		<cfset var str="">
+		<cfset var region=[]>
+		<cfset var obj=[]>
 		<cfloop query="rs">
-			<cfset str=listAppend(str,"#rs.object#~#rs.name#~#rs.objectID#~#rs.params#","^")>
+			<cfset obj=[rs.object,rs.name,rs.objectID,rs.params]> 
+			<cfset arrayAppend(region,obj)>
 		</cfloop>
 
-		<cfreturn str>
+		<cfreturn serializeJSON(region)>
 	</cffunction>
 
 	<cffunction name="setMaterializedPath" output="false">
@@ -1076,15 +1078,15 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 				<cfset newBean.setTitle(newBean.getmenutitle())>
 			</cfif>
 
-			<cfif listFindNoCase('Variation,Component,Form,Module',newBean.getType()) or newBean.getmenuTitle() eq ''>
+			<cfif listFindNoCase('Variation,Component,Form,Module',newBean.getType()) or newBean.getmenuTitle() eq '' or newBean.getModuleID() neq '00000000000000000000000000000000000'>
 				<cfset newBean.setmenutitle(newBean.getTitle())>
 			</cfif>
 
-			<cfif listFindNoCase('Variation,Component,Form,Module',newBean.getType()) or newBean.getURLTitle() eq ''>
+			<cfif listFindNoCase('Variation,Component,Form,Module',newBean.getType()) or newBean.getURLTitle() eq '' or newBean.getModuleID() neq '00000000000000000000000000000000000'>
 				<cfset newBean.setURLTitle(getBean('contentUtility').formatFilename(newBean.getmenutitle()))>
 			</cfif>
 
-			<cfif listFindNoCase('Variation,Component,Form,Module',newBean.getType()) or newBean.getHTMLTitle() eq ''>
+			<cfif listFindNoCase('Variation,Component,Form,Module',newBean.getType()) or newBean.getHTMLTitle() eq '' or newBean.getModuleID() neq '00000000000000000000000000000000000'>
 				<cfset newBean.setHTMLTitle(newBean.getTitle())>
 			</cfif>
 
@@ -1625,7 +1627,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 					}
 				</cfscript>
 
-				<cfif doPurgeOutputCache>
+				<cfif doPurgeOutputCache and variables.configBean.getValue(property='autoPurgeOutputCache',defaultValue=true)>
 					<cfset variables.settingsManager.getSite(arguments.data.siteid).purgeCache(name="output") />
 				</cfif>
 				<cfif doPurgeContentCache>
@@ -1818,7 +1820,9 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	</cflock>
 
 	<cfif NOT currentBean.getIsNew()>
-		<cfset variables.settingsManager.getSite(currentBean.getSiteID()).purgeCache(name="output") />
+		<cfif variables.configBean.getValue(property='autoPurgeOutputCache',defaultValue=true)>
+			<cfset variables.settingsManager.getSite(currentBean.getSiteID()).purgeCache(name="output") />
+		</cfif>
 		<cfset purgeContentCache(contentBean=currentBean)>
 	</cfif>
 
@@ -2632,8 +2636,9 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 			<cfargument name="aggregation" type="boolean" required="yes" default="false" >
 			<cfargument name="applyPermFilter" type="boolean" required="yes" default="false" >
 			<cfargument name="taggroup" type="string" required="yes" default="" >
+			<cfargument name="useCategoryIntersect" default="false">
 
-			<cfreturn variables.contentGateway.getKids(arguments.moduleID, arguments.siteid, arguments.parentID, arguments.type, arguments.today, arguments.size, arguments.keywords, arguments.hasFeatures, arguments.sortBy, arguments.sortDirection, arguments.categoryID, arguments.relatedID, arguments.tag, arguments.aggregation,arguments.applyPermFilter,arguments.taggroup)>
+			<cfreturn variables.contentGateway.getKids(arguments.moduleID, arguments.siteid, arguments.parentID, arguments.type, arguments.today, arguments.size, arguments.keywords, arguments.hasFeatures, arguments.sortBy, arguments.sortDirection, arguments.categoryID, arguments.relatedID, arguments.tag, arguments.aggregation,arguments.applyPermFilter,arguments.taggroup,arguments.useCategoryIntersect)>
 	</cffunction>
 
 	<cffunction name="getKidsIterator" output="false">
@@ -2653,8 +2658,9 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 			<cfargument name="aggregation" type="boolean" required="yes" default="false" >
 			<cfargument name="applyPermFilter" type="boolean" required="yes" default="false" >
 			<cfargument name="taggroup" type="string" required="yes" default="" >
+			<cfargument name="useCategoryIntersect" default="false">
 
-			<cfreturn variables.contentGateway.getKidsIterator(arguments.moduleID, arguments.siteid, arguments.parentID, arguments.type, arguments.today, arguments.size, arguments.keywords, arguments.hasFeatures, arguments.sortBy, arguments.sortDirection, arguments.categoryID, arguments.relatedID, arguments.tag, arguments.aggregation,arguments.applyPermFilter,arguments.taggroup)>
+			<cfreturn variables.contentGateway.getKidsIterator(arguments.moduleID, arguments.siteid, arguments.parentID, arguments.type, arguments.today, arguments.size, arguments.keywords, arguments.hasFeatures, arguments.sortBy, arguments.sortDirection, arguments.categoryID, arguments.relatedID, arguments.tag, arguments.aggregation,arguments.applyPermFilter,arguments.taggroup,arguments.useCategoryIntersect)>
 	</cffunction>
 
 	<cffunction name="getIterator" output="false">
@@ -2669,6 +2675,13 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfargument name="secure" default="false">
 
 		<cfreturn variables.settingsManager.getSite(arguments.bean.getValue("siteID")).getContentRenderer().createHREF(arguments.bean.getValue("type"), arguments.bean.getValue("filename"), arguments.bean.getValue("siteID"), arguments.bean.getValue("contentID"), arguments.bean.getValue("target"), arguments.bean.getValue("targetParams"), arguments.queryString, application.configBean.getContext(), application.configBean.getStub(), application.configBean.getIndexFile(), arguments.complete, arguments.showMeta, arguments.bean, arguments.secure)>
+	</cffunction>
+
+	<cffunction name="hasImage" output="false">
+		<cfargument name="bean" required="true">
+		<cfargument name="usePlaceholder" required="true" default="true">
+
+		<cfreturn len(arguments.bean.getValue('fileID')) && listFindNoCase('jpg,jpeg,png,gif,svg',arguments.bean.getValue('fileEXT')) || arguments.usePlaceholder && len(variables.settingsManager.getSite(arguments.bean.getValue('siteid')).getPlaceholderImgID())>
 	</cffunction>
 
 	<cffunction name="getImageURL" output="false">
@@ -2844,15 +2857,15 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfset purgeContentCacheKey(cache, "crumb"  & arguments.contentBean.getSiteID() & arguments.contentBean.getContentID(),false)>
 
 		<cfif len(arguments.contentBean.getRemoteID())>
-			<cfset purgeContentCacheKey(cache,"remoteID" & arguments.contentBean.getSiteID() & arguments.contentBean.getRemoteID())>
+			<cfset purgeContentCacheKey(cache,"remoteID" & arguments.contentBean.getSiteID() & lcase(arguments.contentBean.getRemoteID()))>
 		</cfif>
 
 		<cfif len(arguments.contentBean.getFilename()) or arguments.contentBean.getContentID() eq "00000000000000000000000000000000001">
-			<cfset purgeContentCacheKey(cache,"filename" & arguments.contentBean.getSiteID() & arguments.contentBean.getFilename())>
+			<cfset purgeContentCacheKey(cache,"filename" & arguments.contentBean.getSiteID() & lcase(arguments.contentBean.getFilename()))>
 		</cfif>
 
-		<cfset purgeContentCacheKey(cache,"title" & arguments.contentBean.getSiteID() & arguments.contentBean.getTitle())>
-		<cfset purgeContentCacheKey(cache,"urltitle" & arguments.contentBean.getSiteID() & arguments.contentBean.getURLTitle())>
+		<cfset purgeContentCacheKey(cache,"title" & arguments.contentBean.getSiteID() & lcase(arguments.contentBean.getTitle()))>
+		<cfset purgeContentCacheKey(cache,"urltitle" & arguments.contentBean.getSiteID() & lcase(arguments.contentBean.getURLTitle()))>
 
 		<cfset history=arguments.contentBean.getVersionHistoryIterator()>
 

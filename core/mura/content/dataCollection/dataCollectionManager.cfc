@@ -72,7 +72,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfset var thefield = "" />
 		<cfset var f = "" />
 		<cfset var theXml = "" />
-		<cfset var ignoreList = '_P,CSSCLASS,ASYNC,CSS,CSRF_TOKEN,CSRF_TOKEN_EXPIRES,INSTANCEID,OBJECTICONCLASS,OBJECTID,PERM,OBJECT,OBJECTNAME,OBJECTICONCLASS,VIEW,INITED,LABEL,ASYNC,REPONSECHART,ISCONFIGURATOR,CONTENTID,CONTENTHISTID,NOCACHE,DOACTION,SUBMIT,MLID,SITEID,FORMID,POLLLIST,REDIRECT_URL,REDIRECT_LABEL,X,Y,UKEY,HKEY,formfield1234567891,formfield1234567892,formfield1234567893,formfield1234567894,INITED,useProtect,linkservid,useReCAPTCHA,g-recaptcha-response,grecaptcharesponse,RENDER,RESPONSECHART' />
+		<cfset var ignoreList = '_P,CSSCLASS,ASYNC,CSS,CSSID,CSRF_TOKEN,CSRF_TOKEN_EXPIRES,INSTANCEID,OBJECTID,PERM,OBJECT,OBJECTNAME,OBJECTICONCLASS,VIEW,INITED,LABEL,ASYNC,REPONSECHART,ISCONFIGURATOR,CONTENTID,CONTENTHISTID,NOCACHE,DOACTION,SUBMIT,MLID,SITEID,FORMID,POLLLIST,REDIRECT_URL,REDIRECT_LABEL,X,Y,UKEY,HKEY,formfield1234567891,formfield1234567892,formfield1234567893,formfield1234567894,INITED,useProtect,linkservid,useReCAPTCHA,g-recaptcha,response,grecaptcharesponse,RENDER,RESPONSECHART,CSSSTYLES,CONTENTCSSSTYLES,METACSSSTYLES,CONTENTCSSCLASS,CONTENTCSSID,METACSSCLASS,METACSSID,CLASS' />
 		<cfset var scopeCheck=structNew()>
 
 		<cfparam name="info.fieldnames" default=""/>
@@ -202,18 +202,38 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfreturn rs>
 	</cffunction>
 
-	<cffunction name="getCurrentFieldList" returntype="string" output="true" access="public">
+	<cffunction name="getFullFieldList" returntype="string" output="true" access="public">
 		<cfargument name="formID" type="string">
-		<cfset var rs=""/>
-		<cfset var dbType=variables.configBean.getDbType() />
+		<cfset var rs="">
 
 		<cfquery attributeCollection="#variables.configBean.getReadOnlyQRYAttrs(name='rs')#">
 			select distinct formField from tformresponsequestions
-			where formID= <cfqueryparam cfsqltype="cf_sql_varchar" value="#arguments.formID#"/>
+			where formID= <cfqueryparam cfsqltype="cf_sql_varchar" value="#arguments.formID#">
 			order by formField asc
 		</cfquery>
 
 		<cfreturn valueList(rs.formField) />
+
+	</cffunction>
+
+	<cffunction name="getCurrentFieldList" returntype="string" output="true" access="public">
+		<cfargument name="formID" type="string">
+		<cfset var rs="">
+
+		<cfquery attributeCollection="#variables.configBean.getReadOnlyQRYAttrs(name='rs')#">
+			SELECT responseDisplayFields
+			FROM tcontent
+			WHERE ContentID = <cfqueryparam cfsqltype="cf_sql_varchar" value="#arguments.formID#">
+			AND active = 1
+		</cfquery>
+
+		<cfset var responseDisplayFields=listFirst(rs.responseDisplayFields,'~')>
+
+		<cfif len(responseDisplayFields)>
+			<cfreturn replace(responseDisplayFields, "^", ",","all") />
+		<cfelse>
+			<cfreturn getFullFieldList(arguments.formid) />
+		</cfif>
 	</cffunction>
 
 	<cffunction name="getData" returntype="query" access="public" output="false">

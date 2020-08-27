@@ -217,14 +217,8 @@ function isDate(dtStr) {
 	return true;
 }
 
-function isEmail(cur) {
-	var string1 = cur
-	if(string1.indexOf("@") == -1 || string1.indexOf(".") == -1) {
-		return false;
-	} else {
-		return true;
-	}
-
+function isEmail(e) {
+	return /^[a-zA-Z_0-9-'\+~]+(\.[a-zA-Z_0-9-'\+~]+)*@([a-zA-Z_0-9-]+\.)+[a-zA-Z]{2,7}$/.test(e);
 }
 
 function isColor(c){
@@ -752,22 +746,32 @@ function setHTMLEditors() {
 	for(i = 0; i < allPageTags.length; i++) {
 		if(allPageTags[i].className == "htmlEditor") {
 
-			var instance = CKEDITOR.instances[allPageTags[i].id];
-			if(typeof(instance) != 'undefined' && instance != null) {
-				CKEDITOR.remove(instance);
+			if(!allPageTags[i].getAttribute('mura-inprocess')){
+				allPageTags[i].setAttribute('mura-inprocess','true');
+
+				var instance = CKEDITOR.instances[allPageTags[i].id];
+				if(typeof(instance) != 'undefined' && instance != null) {
+					CKEDITOR.remove(instance);
+				}
+
+				if($(document.getElementById(allPageTags[i].id)).val() == '') {
+					$(document.getElementById(allPageTags[i].id)).val("<p></p>")
+				}
+
+				var toolbar= allPageTags[i].getAttribute('data-toolbar') || 'Default';
+
+				$(document.getElementById(allPageTags[i].id)).ckeditor({
+						toolbar: toolbar,
+						customConfig: 'config.js.cfm'
+					},
+					function(editorInstance){
+						if(typeof allPageTags[i] != 'undefined' && typeof allPageTags[i].removeAttribute != 'undefined'){
+							allPageTags[i].removeAttribute('mura-inprocess');
+						}
+						htmlEditorOnComplete(editorInstance)
+					}
+				);
 			}
-
-			if($(document.getElementById(allPageTags[i].id)).val() == '') {
-				$(document.getElementById(allPageTags[i].id)).val("<p></p>")
-			}
-
-			var toolbar= allPageTags[i].getAttribute('data-toolbar') || 'Default';
-
-			$(document.getElementById(allPageTags[i].id)).ckeditor({
-				toolbar: toolbar,
-				customConfig: 'config.js.cfm'
-			}, htmlEditorOnComplete);
-
 		}
 	}
 }
@@ -1085,7 +1089,7 @@ function openFileMetaData(contenthistid,fileid,siteid,property) {
 					setTabs('#selectAssocImageResults-' + $elm.attr('data-property'),0);
 				}
 			)
-			.error(
+			.fail(
 				function(data) {
 				$elm.find('.load-inline').spin(false);
 				$elm.find(".mura-file-existing").html(data.responseText);
@@ -1636,39 +1640,72 @@ function setLowerCaseKeys(obj) {
 }
 
 function setFinders(selector){
-	if(typeof CKFinder != 'undefined'){
-		$(selector).unbind('click').on('click',function(){
-			var target=$(this).attr('data-target');
-			var finder = new CKFinder();
-			finder.basePath = context + '/core/vendor/ckfinder/';
-			var completepath=$(this).attr('data-completepath');
-
-			if(completepath.toLowerCase() == 'true'){
-				finder.selectActionFunction = function(fileUrl) {
-					var fs=jQuery('input[name="' + target + '"]');
-					fs.val(webroot + fileDelim + fileUrl);
-					fs.trigger('change');
-				};
+	var targetFrame='sideBar';
+	if(window.self !== window.top){
+		var url=Mura.getQueryStringParams(location.search);
+		Mura(selector).click(function(){
+			var target=Mura(this);
+			if(Mura("#ProxyIFrame").length){
+				Mura("#ProxyIFrame").load(
+					function(){
+						frontEndProxy.post({
+							cmd:'openFileManager',
+							instanceid:url.instanceid,
+							target:target.data('target'),
+							completepath:target.data('completepath'),
+							targetFrame:targetFrame
+							}
+						);
+					}
+				);
 			} else {
-				finder.selectActionFunction = function(fileUrl) {
-					var fs=jQuery('input[name="' + target + '"]');
-					fs.val(fileUrl);
-					fs.trigger('change');
-				};
+				frontEndProxy.post({
+					cmd:'openFileManager',
+					instanceid:url.instanceid,
+					target:target.data('target'),
+					completepath:target.data('completepath'),
+					targetFrame:targetFrame
+					}
+				);
 			}
+		})
 
-			if($(this).attr('data-resourcetype') =='root'){
-				finder.resourceType='Application_Root';
-			} else if($(this).attr('data-resourcetype') == 'site'){
-				finder.resourceType=siteid + '_Site_Files';
-			} else {
-				finder.resourceType=siteid + '_User_Assets';
-			}
+	} else {
+		if(typeof CKFinder != 'undefined'){
+			$(selector).unbind('click').on('click',function(){
+				var target=$(this).attr('data-target');
+				var finder = new CKFinder();
+				finder.basePath = context + '/core/vendor/ckfinder/';
+				var completepath=$(this).attr('data-completepath');
 
-			finder.popup();
+				if(completepath.toLowerCase() == 'true'){
+					finder.selectActionFunction = function(fileUrl) {
+						var fs=jQuery('input[name="' + target + '"]');
+						fs.val(webroot + fileDelim + fileUrl);
+						fs.trigger('change');
+					};
+				} else {
+					finder.selectActionFunction = function(fileUrl) {
+						var fs=jQuery('input[name="' + target + '"]');
+						fs.val(fileUrl);
+						fs.trigger('change');
+					};
+				}
 
-		});
+				if($(this).attr('data-resourcetype') =='root'){
+					finder.resourceType='Application_Root';
+				} else if($(this).attr('data-resourcetype') == 'site'){
+					finder.resourceType=siteid + '_Site_Files';
+				} else {
+					finder.resourceType=siteid + '_User_Assets';
+				}
+
+				finder.popup();
+
+			});
+		}
 	}
+
 }
 
 

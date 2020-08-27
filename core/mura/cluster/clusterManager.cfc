@@ -49,7 +49,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset variables.broadcastClusterCommands= variables.configBean.getValue(property='broadcastClusterCommands',defaultValue=true) and not variables.configBean.getValue(property='readonly',defaultValue=false)>
 <cfset variables.broadcastCachePurges=variables.configBean.getValue("broadcastCachePurges") and variables.broadcastClusterCommands>
 <cfset variables.broadcastAppreloads=variables.configBean.getValue("broadcastAppreloads") and variables.broadcastClusterCommands>
-
+<cfset variables.clearOldBroadcastCommands=variables.configBean.getValue(property="clearOldBroadcastCommands",defaultValue=true) and variables.broadcastClusterCommands>
 <cfreturn this />
 </cffunction>
 
@@ -61,7 +61,9 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfif listFindNoCase('output,data',arguments.name)>
 			<cfset broadcastCommand("getBean('settingsManager').getSite('#arguments.siteID#').purgeCache(name='#arguments.name#',broadcast=false)")>
 		<cfelse>
-			<cfset broadcastCommand("getBean('settingsManager').getSite('#arguments.siteID#').purgeCache(name='output',broadcast=false)")>
+			<cfif variables.configBean.getValue(property='autoPurgeOutputCache',defaultValue=true)>
+				<cfset broadcastCommand("getBean('settingsManager').getSite('#arguments.siteID#').purgeCache(name='output',broadcast=false)")>
+			</cfif>
 			<cfset broadcastCommand("getBean('settingsManager').getSite('#arguments.siteID#').purgeCache(name='data',broadcast=false)")>
 		</cfif>
 
@@ -247,7 +249,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 </cffunction>
 
 <cffunction name="clearOldCommands" output="false">
-	<cfif variables.broadcastClusterCommands>
+	<cfif variables.clearOldBroadcastCommands>
 		<cfquery>
 			delete from tclusterpeers
 			where instanceid in (select instanceid from

@@ -187,6 +187,30 @@
 							</div>
 							<cfif not lockedSuper>
 
+								<cfif $.globalConfig().passwordsExpire()>
+									<div id="passwordexpired" class="help-block-inline" <cfif not rc.userBean.getPasswordExpired()> style="display:none;"</cfif>>#$.rbKey('user.passwordexpired')#</div>
+									
+									<div id="expirepassword" class="mura-control-group" <cfif rc.userBean.getPasswordExpired()> style="display:none;"</cfif>>
+										<button type="button" id="expirepasswordbtn" class="btn">#$.rbKey('user.expirepassword')#</button>
+									</div>
+									<script>
+										$(function(){
+											$('##expirepasswordbtn').on('click',function(){
+												confirmDialog(
+													"#esapiEncode('javascript',$.rbKey('user.expirepasswordconfirm'))#",
+													function(){
+														Mura.get('./?muraAction=cusers.expirepassword&userid=#esapiEncode('url',rc.userBean.getUserID())#&siteid=#esapiEncode('url',rc.userBean.getSiteID())#')
+														.then(function(){
+															Mura('##expirepassword').hide();
+															Mura('##passwordexpired').show();
+														})
+													}
+												);
+											})
+										});
+									</script>
+								</cfif>
+								
 								<cfif isBoolean($.globalConfig('strongpasswords')) and $.globalConfig('strongpasswords')>
 									<div class="help-block-inline">#$.rbKey('user.passwordstrengthhelptext')#</div>
 								</cfif>
@@ -748,7 +772,7 @@
 
 				<div class="mura-actions">
 					<div class="form-actions">
-						<cfif rc.userid eq ''>
+						<cfif rc.userid eq '' or not rc.userBean.exists()>
 							<button type="button" class="btn mura-primary" onclick="userManager.submitForm(document.forms.form1,'add');"><i class="mi-check-circle"></i>#rbKey('user.add')#</button>
 						<cfelse>
 							<cfif not lockedSuper><button type="button" class="btn" onclick="submitForm(document.forms.form1,'delete','#jsStringFormat(rbKey('user.deleteuserconfirm'))#');"><i class="mi-trash"></i>#rbKey('user.delete')#</button></cfif>
@@ -758,7 +782,7 @@
 				</div>
 
 				<input type="hidden" name="type" value="2"><!--- 2=user, 1=group --->
-				<cfset tempAction = !Len(rc.userid) ? 'Add' : 'Update' />
+				<cfset tempAction = (!Len(rc.userid) or not rc.userBean.exists()) ? 'Add' : 'Update' />
 				<input type="hidden" name="action" value="#tempAction#">
 				<input type="hidden" name="contact" value="0">
 				<input type="hidden" name="groupid" value="">

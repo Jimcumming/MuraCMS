@@ -738,7 +738,12 @@ select * from tplugins order by #arguments.orderby#
 
 				<cfif isXml(configXML)>
 					<cfif not hasPlugin(listLast(rsRequirements.name,"_"),"",false)>
-						<cfset deployDirectory(directory=rsRequirements.name,autoDeploy=false)>
+						<cfset var siteids=''>
+						<cfif structKeyExists(configXML.plugin,"defaultsiteids")
+							and len(configXML.plugin.defaultsiteids.xmlText)>
+							<cfset siteids=configXML.plugin.defaultsiteids.xmlText>
+						</cfif>
+						<cfset deployDirectory(directory=rsRequirements.name,autoDeploy=false,siteid=siteids)>
 					<cfelseif structKeyExists(configXML.plugin,"autoUpdate")
 							and isBoolean(configXML.plugin.autoUpdate.xmlText)
 							and isBoolean(configXML.plugin.autoUpdate.xmlText)
@@ -1270,7 +1275,7 @@ select * from tplugins order by #arguments.orderby#
 			<cfset executeScripts(runat=arguments.eventToAnnounce,siteid=siteid,event=arguments.currentEventObject,rsHandlers=arguments.rsHandlers,moduleID=arguments.moduleID,objectid=arguments.objectid)>
 		</cfif>
 	</cfif>
-</cffunction>""
+</cffunction>
 
 <cffunction name="renderEvent" output="false">
 <cfargument name="eventToRender" required="true" default="" type="any">
@@ -1279,16 +1284,20 @@ select * from tplugins order by #arguments.orderby#
 <cfargument name="moduleID" required="true" default="" type="any">
 <cfargument name="index" required="true" default="0" type="any">
 <cfargument name="objectid" required="true" default="" type="any">
-	<cfset var siteID="">
-	<cfif variables.utility.checkForInstanceOf(arguments.currentEventObject,"mura.MuraScope")>
-		<cfset siteID=arguments.currentEventObject.event('siteID')>
+	<cfif isDefined('variables.utility')>
+		<cfset var siteID="">
+		<cfif variables.utility.checkForInstanceOf(arguments.currentEventObject,"mura.MuraScope")>
+			<cfset siteID=arguments.currentEventObject.event('siteID')>
+		<cfelse>
+			<cfset siteID=arguments.currentEventObject.getValue('siteID')>
+		</cfif>
+		<cfif arguments.index>
+			<cfreturn renderScript(runat=arguments.eventToRender,siteid=siteid,event=arguments.currentEventObject,index=arguments.index,objectid=arguments.objectid)>
+		<cfelse>
+			<cfreturn renderScripts(runat=arguments.eventToRender,siteid=siteid,event=arguments.currentEventObject,rsHandlers=arguments.rsHandlers,moduleID=arguments.moduleID,objectid=arguments.objectid)>
+		</cfif>
 	<cfelse>
-		<cfset siteID=arguments.currentEventObject.getValue('siteID')>
-	</cfif>
-	<cfif arguments.index>
-		<cfreturn renderScript(runat=arguments.eventToRender,siteid=siteid,event=arguments.currentEventObject,index=arguments.index,objectid=arguments.objectid)>
-	<cfelse>
-		<cfreturn renderScripts(runat=arguments.eventToRender,siteid=siteid,event=arguments.currentEventObject,rsHandlers=arguments.rsHandlers,moduleID=arguments.moduleID,objectid=arguments.objectid)>
+		<cfreturn "">
 	</cfif>
 
 </cffunction>
@@ -2479,7 +2488,7 @@ select * from tplugins order by #arguments.orderby#
 							<cfif not isObject(eventHandler)>
 								<cfset eventHandler=getEventHandlerFromPath(eventHandler)>
 							</cfif>
-							<cfset tracePoint=initTracePoint("#eventHandlere.getValue('_objectName')#.#arguments.runat#")>
+							<cfset tracePoint=initTracePoint("#eventHandler.getValue('_objectName')#.#arguments.runat#")>
 							<cfsavecontent variable="local.theDisplay1">
 							<cfinvoke component="#eventHandler#"method="#arguments.runat#" returnVariable="local.theDisplay2">
 								<cfinvokeargument name="event" value="#arguments.event#">
@@ -2539,7 +2548,7 @@ select * from tplugins order by #arguments.orderby#
 							<cfif not isObject(eventHandler)>
 								<cfset eventHandler=getEventHandlerFromPath(eventHandler)>
 							</cfif>
-							<cfset tracePoint=initTracePoint("#eventHandlere.getValue('_objectName')#.#arguments.runat#")>
+							<cfset tracePoint=initTracePoint("#eventHandler.getValue('_objectName')#.#arguments.runat#")>
 							<cfsavecontent variable="local.theDisplay1">
 							<cfinvoke component="#eventHandler#"method="#arguments.runat#" returnVariable="local.theDisplay2">
 								<cfinvokeargument name="event" value="#arguments.event#">
@@ -2969,6 +2978,7 @@ select * from rs order by name
 <cfargument name="applyglobal" required="true" default="true">
 <cfargument name="objectid" required="true" default="">
 
+<cflock name="addEventHandler#application.instanceID#" type="exclusive" timeout="200">
 	<cfset var i = "">
 	<cfset var handlerData=structNew()>
 	<cfset var eventhandler=arguments.component>
@@ -3080,7 +3090,7 @@ select * from rs order by name
 			</cfif>
 		</cfif>
 	</cfloop>
-
+</cflock>
 </cffunction>
 
 <cffunction name="getEventHandlerFromPath" output="false">

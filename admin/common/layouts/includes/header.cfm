@@ -47,7 +47,7 @@
 	<cfparam name="rc.originalfuseAction" default="">
 	<cfparam name="rc.originalcircuit" default="">
 	<cfparam name="rc.moduleid" default="">
-	<cfif not application.configBean.getSessionHistory() or application.configBean.getSessionHistory() gte 30>
+	<cfif not application.configBean.getSessionHistory() or application.configBean.getSessionHistory() gte 180>
 		<cfparam name="session.dashboardSpan" default="30">
 	<cfelse>
 		<cfparam name="session.dashboardSpan" default="#application.configBean.getSessionHistory()#">
@@ -129,7 +129,7 @@
       <li class="js-header-search header-search">
 				<form class="form-horizontal" action="##" novalidate="novalidate" id="globalSearch" name="globalSearch" method="get">
           <div class="form-material form-material-primary input-group remove-margin-t remove-margin-b">
-              <input class="form-control" type="text" id="mura-search-keywords" name="keywords" value="#esapiEncode('html_attr',session.keywords)#" placeholder="Search">
+              <input class="form-control" type="text" id="mura-search-keywords" name="keywords" value="#esapiEncode('html_attr',session.keywords)#" placeholder="#rc.$.rbKey('dashboard.search')#">
               <span onclick="submitForm(document.forms.globalSearch);" class="input-group-addon" id="mura-search-submit"><i class="mi-search"></i></span>
           </div>
 					<input type="hidden" name="muraAction" value="cArch.list">
@@ -231,7 +231,7 @@
 									</cfif>
 
                   <li>
-                      <a tabindex="-1" href="#application.configBean.getContext()##application.configBean.getAdminDir()#/?muraAction=cEditProfile.edit"><i class="mi-cog"></i> Edit Profile</a>
+                      <a tabindex="-1" href="#application.configBean.getContext()##application.configBean.getAdminDir()#/?muraAction=cEditProfile.edit"><i class="mi-cog"></i> #rc.$.rbKey('layout.editprofile')#</a>
                   </li>
                   <li>
                       <a tabindex="-1" href="#application.configBean.getContext()##application.configBean.getAdminDir()#/?muraAction=cLogin.logout"><i class="mi-sign-out"></i> #rc.$.rbKey("layout.logout")#</a>

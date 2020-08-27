@@ -175,14 +175,18 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 			<cfif not arguments.lockdownCheck>
 				<cfset loginByQuery(rsUser)/>
 			<cfelse>
-				<cfswitch expression="#arguments.lockdownExpries#">
-					<cfcase value="1,7,30,10950">
-						<cfset application.utility.setCookie(name="passedLockdown", value=true, expires=arguments.lockdownExpries)>
-					</cfcase>
-					<cfcase value="session">
-						<cfset application.utility.setCookie(name="passedLockdown", value=true, expires="session")>
-					</cfcase>
-				</cfswitch>
+				<cfif variables.configBean.getValue(property="sessionBasedLockdown",defaultValue=false)>
+					<cfset sessionData.passedLockdown=true>
+				<cfelse>
+					<cfswitch expression="#arguments.lockdownExpries#">
+						<cfcase value="1,7,30,10950">
+							<cfset application.utility.setCookie(name="passedLockdown", value=true, expires=arguments.lockdownExpries)>
+						</cfcase>
+						<cfcase value="session">
+							<cfset application.utility.setCookie(name="passedLockdown", value=true, expires="session only")>
+						</cfcase>
+					</cfswitch>
+				</cfif>
 			</cfif>
 
 			<cfset strikes.clear()>
@@ -393,7 +397,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 
 							<cfif userBean.getUsername() neq ''>
 								<cfif autoresetpasswords>
-									<cfset userBean.setPassword(getRandomPassword()) />
+									<cfset userBean.setPassword(getRandomPassword(12,"alphanumeric","yes")) />
 									<cfset userBean.save() />
 								</cfif>
 
@@ -589,7 +593,7 @@ The #contactName# staff</cfoutput>
 <cfoutput>Dear #firstname#,
 
 We received a request to reset the password associated with this
-e-mail address. If you made this request, please follow the
+email address. If you made this request, please follow the
 instructions below.
 
 (If you did not request to have your password reset you can safely
@@ -780,7 +784,7 @@ Thanks for using #contactName#</cfoutput>
 <cffunction name="returnLoginCheck" output="false">
 <cfargument name="$">
 	<cfset var rs="">
-	<cfif not arguments.$.currentUser().isLoggedIn() and len(arguments.$.event('returnID')) and len(arguments.$.event('returnUserID'))>
+	<cfif len(arguments.$.event('returnID')) and len(arguments.$.event('returnUserID'))>
 		<cfset var redirect=getBean('userRedirect').loadBy(redirectid=arguments.$.event('returnID'))>
 		<cfif redirect.exists()
 			and redirect.getCreated() gte dateAdd("d",-1,now())

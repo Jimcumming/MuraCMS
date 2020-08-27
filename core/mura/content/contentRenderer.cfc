@@ -43,6 +43,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 --->
 <cfcomponent extends="mura.cfobject" output="false" hint="This provides core rendering functionality">
 
+<cfset this.primaryContentTypes=""/>
 <cfset this.validateCSRFTokens=false/>
 <cfset this.allowPublicComments=true>
 <cfset this.navOffSet=0/>
@@ -58,6 +59,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset this.shortDateFormat="short"/>
 <cfset this.showMetaList="jpg,jpeg,png,gif,svg">
 <cfset this.imageInList="jpg,jpeg,png,gif,svg">
+<cfset this.defaultCollectionDisplayList="Date,Title,Image,Summary,Credits"/>
 <cfset this.directImages=true/>
 <cfset this.personalization="user">
 <cfset this.hasEditableObjects=false>
@@ -69,6 +71,9 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset this.deferMuraJS=false>
 <cfset this.hideRestrictedNav=false>
 <cfset this.templateArray=[]>
+<cfset this.collectionLayoutArray=[]>
+<cfset this.editableAttributesArray=[]>
+<cfset this.imageAttributesArray=[]>
 <cfset this.styleLookup={
 		'textAlign'='text-align',
 		'textDecoration'='text-decoration',
@@ -232,6 +237,7 @@ General Classes
 <cfset this.formButtonSubmitclass = "form-submit  btn-primary">
 <cfset this.formButtomSubmitclass = this.formButtonSubmitclass>
 <cfset this.formButtonSubmitLabel = "Submit">
+<cfset this.formButtonSubmitWaitLabel = "Please Wait...">
 <cfset this.formButtonNextlClass = "form-nav">
 <cfset this.formButtonNextLabel = "Next">
 <cfset this.formButtonBackClass = "form-nav">
@@ -240,6 +246,7 @@ General Classes
 <cfset this.formButtonCancelClass = "form-cancel btn-primary pull-right">
 <cfset this.formRequiredLabel= "Required">
 
+<cfset this.expandedContentContainerClass="container">
 
 <!--- Images --->
 <cfset this.imageClass="img-thumbnail">
@@ -648,11 +655,19 @@ Display Objects
 				? this.indexFileInURLs
 				: application.configBean.getIndexFileInURLs();
 
-		this.enableFrontEndTools = IsDefined('this.enableFrontEndTools')
-			? this.enableFrontEndTools
-			: IsBoolean(getConfigBean().getEnableFrontEndTools())
-				? getConfigBean().getEnableFrontEndTools()
-				: true;
+		if(isDefined('url.enableFrontEndTools') && isBoolean(url.enableFrontEndTools)){
+			session.enableFrontEndTools = url.enableFrontEndTools;
+		}
+		
+		if(isDEfined('session.enableFrontEndTools') && isBoolean(session.enableFrontEndTools)){
+			this.enableFrontEndTools = session.enableFrontEndTools;
+		} else {
+			this.enableFrontEndTools = IsDefined('this.enableFrontEndTools')
+				? this.enableFrontEndTools
+				: IsBoolean(getConfigBean().getEnableFrontEndTools())
+					? getConfigBean().getEnableFrontEndTools()
+					: true;
+		}
 	</cfscript>
 
 	<cfreturn this />
@@ -686,6 +701,7 @@ Display Objects
 		formButtomSubmitclass = this.formButtomSubmitclass,
 		formButtonSubmitclass = this.formButtonSubmitclass,
 		formButtonSubmitLabel = this.formButtonSubmitLabel,
+		formButtonSubmitWaitLabel = this.formButtonSubmitWaitLabel,
 		formButtonNextlClass = this.formButtonNextlClass,
 		formButtonNextLabel = this.formButtonNextLabel,
 		formButtonBackClass = this.formButtonBackClass,
@@ -699,6 +715,25 @@ Display Objects
 
 <cffunction name="postMergeInit" output="false">
 	<cfscript>
+		var renderProps='';
+
+		if(isDefined('application.muraExternalConfig.global.rendererProperties')){
+			renderProps=application.muraExternalConfig.global.rendererProperties;
+			if(isStruct(renderProps)){
+				for ( var key in renderProps ) {
+					this.injectMethod('#key#',renderProps[key]);
+				}
+			}
+		}
+		if(isValid('variableName',variables.event.getValue('siteID')) && isDefined('application.muraExternalConfig.sites.#variables.event.getValue('siteID')#.rendererProperties')){
+			renderProps=application.muraExternalConfig.sites[variables.event.getValue('siteID')].rendererProperties;
+			if(isStruct(renderProps)){
+				for ( var key in renderProps ) {
+					this.injectMethod('#key#',renderProps[key]);
+				}
+			}
+		}
+
 		this.asyncObjects=request.muraFrontEndRequest && (this.asyncObjects || this.layoutmanager);
 		this.asyncRender=!this.asyncObjects;
 		return this;
@@ -2783,7 +2818,7 @@ Display Objects
 </cffunction>
 
 <cffunction name="hasFETools" output="false">
-<cfreturn getShowToolbar() and (not isDefined('cookie.fetdisplay') or cookie.fetdisplay eq '')/>
+<cfreturn getShowToolbar() and (not isDefined('cookie.fetdisplay') or cookie.fetdisplay eq '' or cookie.fetdisplay eq 'block')/>
 </cffunction>
 
 <cffunction name="getShowInlineEditor" output="false">
@@ -3129,7 +3164,7 @@ Display Objects
 		return '';
 	}
 
-	public function outputMuraCSS(includeskin=true, version='7.1', complete=false, useProtocol=true) {
+	public function outputMuraCSS(includeskin=true, version='7.2', complete=false, useProtocol=true) {
 		if ( !fileExists(expandPath('/muraWRM/core/modules/v1/core_assets/css/mura.' & arguments.version & '.min.css')) ) {
 			arguments.version = '7.0';
 		}

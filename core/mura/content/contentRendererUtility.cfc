@@ -126,16 +126,16 @@
 						cssClass=cssClass & "mura-inactive mura-editable-attribute#inline#";
 
 						return '<div class="mura-region mura-region-loose mura-editable mura-inactive#inline#">
-							<label class="mura-editable-label">#ucase(arguments.label)#</label>
-							<div contenteditable="false" id="mura-editable-attribute-#arguments.attribute#" class="#cssClass#" #dataString#>#arguments.value#</div>
+							<label class="mura-editable-label" style="display:none;">#ucase(arguments.label)#</label>
+							<div id="mura-editable-attribute-#arguments.attribute#" class="#cssClass#" #dataString#>#arguments.value#</div>
 							</div>';
 					} else {
 
 						cssClass=cssClass & "mura-inactive mura-editable-attribute#inline#";
 
 						return '<div class="mura-editable mura-inactive#inline#">
-							<label class="mura-editable-label">#ucase(arguments.label)#</label>
-							<div contenteditable="false" id="mura-editable-attribute-#arguments.attribute#" class="#cssClass#" #dataString#>#arguments.value#</div>
+							<label class="mura-editable-label" style="display:none;">#ucase(arguments.label)#</label>
+							<div id="mura-editable-attribute-#arguments.attribute#" class="#cssClass#" #dataString#>#arguments.value#</div>
 							</div>';
 
 					}
@@ -144,7 +144,7 @@
 					cssClass=cssClass & "mura-inactive mura-editable-attribute#inline#";
 
 					return '<div class="mura-editable mura-inactive#inline#">
-						<label class="mura-editable-label">#ucase(arguments.label)#</label>
+						<label class="mura-editable-label" style="display:none">#ucase(arguments.label)#</label>
 						<div contenteditable="false" id="mura-editable-attribute-#arguments.attribute#" class="#cssClass#" #dataString#>#arguments.value#</div>
 						</div>';
 
@@ -429,9 +429,8 @@
 		<cfargument name="renderer">
 		<cfargument name="filterVarsList" default="">
 		<cfset var qrystr=''>
-		<cfset var host=''>
 		<cfset var item = "" />
-		<cfset var _filterVarsList='NOCACHE,PATH,DELETECOMMENTID,APPROVEDCOMMENTID,LOADLIST,INIT,SITEID,DISPLAY,#ucase(application.appReloadKey)#,#filterVars#'>
+		<cfset var _filterVarsList='ENTITYNAME,METHOD,NOCACHE,PATH,DELETECOMMENTID,APPROVEDCOMMENTID,LOADLIST,INIT,SITEID,DISPLAY,#ucase(application.appReloadKey)#,#filterVars#'>
 
 		<cfif len(arguments.filterVarsList)>
 			<cfset _filterVarsList=_filterVarsList & ',' & arguments.filterVarsList>
@@ -461,14 +460,10 @@
 		</cfif>
 
 		<cfif arguments.complete>
-			<cfif application.utility.isHTTPS()>
-				<cfset host='https://#arguments.domain##arguments.renderer.getMuraScope().siteConfig('ServerPort')#'>
-			<cfelse>
-				<cfset host='#arguments.renderer.getMuraScope().siteConfig('scheme')#://#arguments.domain##arguments.renderer.getMuraScope().siteConfig('ServerPort')#'>
-			</cfif>
+			<cfreturn arguments.renderer.getMuraScope().siteConfig().getWebPath(secure=application.utility.isHTTPS(),complete=1) & arguments.renderer.getURLStem(request.servletEvent.getValue('siteID'),request.servletEvent.getValue('currentFilename')) & qrystr>
+		<cfelse>
+			<cfreturn arguments.renderer.getMuraScope().siteConfig('context') & arguments.renderer.getURLStem(request.servletEvent.getValue('siteID'),request.servletEvent.getValue('currentFilename')) & qrystr >
 		</cfif>
-
-		<cfreturn host & arguments.renderer.getMuraScope().siteConfig('context') & arguments.renderer.getURLStem(request.servletEvent.getValue('siteID'),request.servletEvent.getValue('currentFilename')) & qrystr >
 
 	</cffunction>
 
@@ -992,16 +987,17 @@
 
 			<cfif arguments.returnFormat eq 'struct'>
 				<cfif len(arguments.content)>
-					<cfreturn {
+					<cfset var returnStruct={
 								header=openingDiv & '<div id="#esapiEncode('html_attr',trim(arguments.objectparams.contentcssid))#" class="#esapiEncode('html_attr',trim('mura-object-content #arguments.objectparams.contentcssclass#'))#" style="#$.renderCssStyles(objectparams.contentcssstyles)#">',
 								footer="</div></div>"
 							}>
 				<cfelse>
-					<cfreturn {
+					<cfset var returnStruct={
 								header=openingDiv,
 								footer="</div>"
 							}>
 				</cfif>
+				<cfreturn returnStruct>
 			<cfelse>
 				<cfif len(arguments.content)>
 					<cfreturn openingDiv & '<div id="#esapiEncode('html_attr',trim(arguments.objectparams.contentcssid))#" class="#esapiEncode('html_attr',trim('mura-object-content #arguments.objectparams.contentcssclass#'))#" style="#$.renderCssStyles(objectparams.contentcssstyles)#">' & arguments.content & '</div></div>'>
@@ -1469,7 +1465,7 @@
 			<cfset theRegion.header='<div class="mura-region">'>
 			<cfset theRegion.footer='</div>'>
 
-			<cfset theRegion.local.header='<div class="mura-editable mura-inactive"><div class="mura-region-local mura-inactive mura-editable-attribute" data-loose="false" data-regionid="#arguments.columnid#" data-inited="false" data-perm="#perm#"><label style="display:none" class="mura-editable-label">DISPLAY REGION : #regionLabel#</label>'>
+			<cfset theRegion.local.header='<div class="mura-editable mura-inactive"><div class="mura-region-local mura-inactive mura-editable-attribute" data-loose="false" data-regionid="#arguments.columnid#" data-inited="false" data-perm="#perm#"><label class="mura-editable-label" style="display:none" >DISPLAY REGION : #regionLabel#</label>'>
 			<cfset theRegion.local.footer='</div></div>'>
 
 			<cfset theRegion.inherited.header='<div class="mura-region-inherited">'>

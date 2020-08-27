@@ -49,6 +49,8 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	<cfparam name="objectParams.forcelayout" default="false">
 	<cfparam name="objectParams.sortby" default="Title">
 	<cfparam name="objectParams.sortdirection" default="ASC">
+	<cfparam name="objectParams.render" default="server">
+	<cfparam name="objectParams.async" default="false">
 	<cfset hasFeedManagerAccess=rc.configuratormode neq 'backend' and rc.$.getBean('permUtility').getModulePerm('00000000000000000000000000000000011',rc.siteid)>
 </cfsilent>
 <cfsavecontent variable="data.html">
@@ -69,6 +71,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 					<option <cfif objectParams.sourcetype eq 'localindex'>selected </cfif>value="localindex">#application.rbFactory.getKeyValue(session.rb,'sitemanager.content.fields.localindex')#</option>
 					<option <cfif objectParams.sourcetype eq 'remotefeed'>selected </cfif>value="remotefeed">#application.rbFactory.getKeyValue(session.rb,'sitemanager.content.fields.remotefeed')#</option>
 					<option <cfif objectParams.sourcetype eq 'relatedcontent'>selected </cfif>value="relatedcontent">#application.rbFactory.getKeyValue(session.rb,'sitemanager.content.fields.relatedcontent')#</option>
+					<option <cfif objectParams.sourcetype eq 'children'>selected </cfif>value="children">#application.rbFactory.getKeyValue(session.rb,'sitemanager.content.fields.children')#</option>
 				</select>
 			</div>
 			<div id="localindexcontainer" class="mura-control-group source-container" style="display:none">
@@ -117,7 +120,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		</div>
 		<div class="mura-layout-row" id="layoutcontainer">
 		</div>
-		
+
 		</div>
 		<!--- Include global config object options --->
 		<cfinclude template="#$.siteConfig().lookupDisplayObjectFilePath('object/configurator.cfm')#">
@@ -216,14 +219,13 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 			}
 
 			setLayoutOptions=function(){
-
+				$('input[name="layout"]').val($('##layoutSel').val());
 				siteManager.updateAvailableObject();
-
 				siteManager.availableObject.params.source = siteManager.availableObject.params.source || '';
 
 				var params=siteManager.availableObject.params;
 
-			  	params.layout=params.layout || 'default';
+			  params.layout=params.layout || 'default';
 
 				//console.log(params)
 
@@ -237,6 +239,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 					success:function(response){
 						$('##layoutcontainer').html(response);
 						$('.mura ##configurator select').niceSelect();
+						$('##layoutcontainer .mura-file-selector').fileselector();
 					}
 				})
 			}

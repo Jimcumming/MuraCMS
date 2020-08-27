@@ -84,11 +84,26 @@
 		<cfargument name="source">
 		<cfargument name="destination">
 		<cfargument name="mode" required="true" default="#variables.defaultFileMode#">
-		<cfif variables.useMode >
-			<cffile action="copy" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />
-		<cfelse>
-			<cffile action="copy" source="#arguments.source#" destination="#arguments.destination#" />
-		</cfif>
+		<cflock name="mfw#hash(arguments.source)#" type="exclusive" timeout="5">
+			<cftry>
+				<cfif variables.useMode >
+					<cffile action="copy" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />
+				<cfelse>
+					<cffile action="copy" source="#arguments.source#" destination="#arguments.destination#" />
+				</cfif>
+				<cfcatch>
+					<cfset sleep(RandRange(500, 1000))>
+					<cfif fileExists(arguments.destination)>
+						<cfset fileDelete(arguments.destination)>
+					</cfif>
+					<cfif variables.useMode >
+						<cffile action="copy" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />
+					<cfelse>
+						<cffile action="copy" source="#arguments.source#" destination="#arguments.destination#" />
+					</cfif>
+				</cfcatch>
+			</cftry>
+		</cflock>
 		<cfreturn this />
 	</cffunction>
 
@@ -96,15 +111,22 @@
 		<cfargument name="source">
 		<cfargument name="destination">
 		<cfargument name="mode" required="true" default="#variables.defaultFileMode#">
-		<cfif variables.useMode >
-			<cffile action="copy" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />
-			<cftry><cffile action="delete" file="#arguments.source#" /><cfcatch></cfcatch></cftry>
-			<!---<cffile action="move" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />--->
-		<cfelse>
-			<cffile action="copy" source="#arguments.source#" destination="#arguments.destination#" />
-			<cftry><cffile action="delete" file="#arguments.source#" /><cfcatch></cfcatch></cftry>
-			<!---<cffile action="move" source="#arguments.source#" destination="#arguments.destination#" />--->
-		</cfif>
+		<cflock name="mfw#hash(arguments.source)#" type="exclusive" timeout="5">
+			<!---<cfif not listFirst(expandPath(arguments.file),':') eq 's3>--->
+				<cfif variables.useMode >
+					<cffile action="copy" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />
+					<cftry><cffile action="delete" file="#arguments.source#" /><cfcatch></cfcatch></cftry>
+				<cfelse>
+					<cffile action="copy" source="#arguments.source#" destination="#arguments.destination#" />
+					<cftry><cffile action="delete" file="#arguments.source#" /><cfcatch></cfcatch></cftry>
+				</cfif>
+			<!---
+			<cfelse>
+				<cffile action="copy" acl="private" source="#arguments.source#" destination="#arguments.destination#" />
+				<cftry><cffile action="delete" file="#arguments.source#" /><cfcatch></cfcatch></cftry>
+			</cfif>
+			--->
+		</cflock>
 		<cfreturn this />
 	</cffunction>
 
@@ -112,11 +134,13 @@
 		<cfargument name="source">
 		<cfargument name="destination">
 		<cfargument name="mode" required="true" default="#variables.defaultFileMode#">
-		<cfif variables.useMode >
-			<cffile action="rename" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />
-		<cfelse>
-			<cffile action="rename" source="#arguments.source#" destination="#arguments.destination#" />
-		</cfif>
+		<cflock name="mfw#hash(arguments.source)#" type="exclusive" timeout= "5">
+			<cfif variables.useMode >
+				<cffile action="rename" mode="#arguments.mode#" source="#arguments.source#" destination="#arguments.destination#" />
+			<cfelse>
+				<cffile action="rename" source="#arguments.source#" destination="#arguments.destination#" />
+			</cfif>
+		</cflock>
 		<cfreturn this />
 	</cffunction>
 
@@ -131,7 +155,6 @@
 		<cfset var counter = 0>
 
 		<cfif isDefined('arguments.output.mode')>
-			<!---<cftry>--->
 				<cfset new = FileOpen(arguments.file, "write")>
 
 				<cfloop condition="!fileIsEOF( arguments.output )">
@@ -153,11 +176,15 @@
 					<cfset FileDelete(arguments.output.path & "/" & arguments.output.name)>
 				</cfif>
 		<cfelse>
-			<cfif variables.useMode >
-				<cffile action="write" mode="#arguments.mode#" file="#arguments.file#" output="#arguments.output#" addnewline="#arguments.addNewLine#"/>
-			<cfelse>
-				<cffile action="write" file="#arguments.file#" output="#arguments.output#" addnewline="#arguments.addNewLine#"/>
-			</cfif>
+			<!---<cfif not listFirst(expandPath(arguments.file),':') eq 's3>--->
+				<cfif variables.useMode >
+					<cffile action="write" mode="#arguments.mode#" file="#arguments.file#" output="#arguments.output#" addnewline="#arguments.addNewLine#"/>
+				<cfelse>
+					<cffile action="write" file="#arguments.file#" output="#arguments.output#" addnewline="#arguments.addNewLine#"/>
+				</cfif>
+			<!---<cfelse>
+				<cffile action="write" acl="private" file="#arguments.file#" output="#arguments.output#" addnewline="#arguments.addNewLine#"/>
+			</cfif>--->
 		</cfif>
 		<cfreturn this />
 	</cffunction>
@@ -197,24 +224,23 @@
 		<cfargument name="file">
 		<cfargument name="output">
 		<cfargument name="mode" required="true" default="#variables.defaultFileMode#">
-		<cfif variables.useMode >
-			<cffile action="append" mode="#arguments.mode#" file="#arguments.file#" output="#arguments.output#"/>
-		<cfelse>
-			<cffile action="append" file="#arguments.file#" output="#arguments.output#" />
-		</cfif>
+		<cflock name="mfw#hash(arguments.file)#" type="exclusive" timeout="5">
+			<cfif variables.useMode >
+				<cffile action="append" mode="#arguments.mode#" file="#arguments.file#" output="#arguments.output#"/>
+			<cfelse>
+				<cffile action="append" file="#arguments.file#" output="#arguments.output#" />
+			</cfif>
+		</cflock>
 		<cfreturn this />
 	</cffunction>
 
 	<cffunction name="createDir" output="false">
 		<cfargument name="directory">
 		<cfargument name="mode" required="true" default="#variables.defaultFileMode#">
-		<!--- Skip if using Amazon S3 --->
-		<cfif Not ListFindNoCase('s3', Left(arguments.directory, 2))>
-			<cfif variables.useMode >
-				<cfdirectory action="create" mode="#arguments.mode#" directory="#arguments.directory#"/>
-			<cfelse>
-				<cfdirectory action="create" directory="#arguments.directory#"/>
-			</cfif>
+		<cfif variables.useMode >
+			<cfdirectory action="create" mode="#arguments.mode#" directory="#arguments.directory#"/>
+		<cfelse>
+			<cfdirectory action="create" directory="#arguments.directory#"/>
 		</cfif>
 		<cfreturn this />
 	</cffunction>
@@ -259,8 +285,8 @@
 		<cfset var errors=arrayNew(1)>
 		<cfset var copyItem="">
 
-		<cfset arguments.baseDir=pathFormat(arguments.baseDir)>
-		<cfset arguments.destDir=pathFormat(arguments.destDir)>
+		<cfset arguments.baseDir=pathFormat(conditionalExpandPath(arguments.baseDir))>
+		<cfset arguments.destDir=pathFormat(conditionalExpandPath(arguments.destDir))>
 		<cfset arguments.excludeList=pathFormat(arguments.excludeList)>
 
 		<cfif arguments.baseDir neq arguments.destDir>
@@ -315,13 +341,13 @@
 
 			<cfloop query="rs">
 				<cfset copyItem="#replace('#rs.directory#/',arguments.baseDir,arguments.destDir)#">
-				<cfif fileExists(copyItem)>
-					<cffile action="delete" file="#copyItem#">
+				<cfif fileExists("#copyItem#/#rs.name#")>
+					<cffile action="delete" file="#copyItem#/#rs.name#">
 				</cfif>
 
 				<cftry>
 					<cfset copyFile(source="#rs.directory#/#rs.name#", destination=copyItem, sinceDate=arguments.sinceDate)>
-					<cfcatch><cfset arrayAppend(errors,copyItem)></cfcatch>
+					<cfcatch><cfset arrayAppend(errors,"#copyItem#/#rs.name#")></cfcatch>
 				</cftry>
 			</cfloop>
 		</cfif>
@@ -393,7 +419,7 @@
 		</cfif>
 	</cffunction>
 
-	<cffunction name="PathFormat" access="private" output="no" hint="Convert path into Windows or Unix format.">
+	<cffunction name="PathFormat" output="no" hint="Convert path into Windows or Unix format.">
 		<cfargument name="path" required="yes" type="string" hint="The path to convert.">
 		<cfset arguments.path = Replace(arguments.path, "\", "/", "ALL")>
 		<cfreturn arguments.path>
@@ -417,4 +443,22 @@
 		<cfreturn rs>
 	</cffunction>
 
+	<cfscript>
+		function conditionalExpandPath(path){
+			if(find(":",arguments.path)){
+				return path;
+			} else {
+				if(directoryExists(path)){
+					return path;
+				} else{
+					var expandedPath=expandPath(arguments.path);
+					if(directoryExists(expandedPath)){
+						return expandedPath;
+					} else {
+						return arguments.path;
+					}
+				}
+			}
+		}
+	</cfscript>
 </cfcomponent>

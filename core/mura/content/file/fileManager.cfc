@@ -896,7 +896,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 
 	<cfset var site=variables.settingsManager.getSite(arguments.siteid)>
 
-	<cfif isValid('URL', application.configBean.getAssetPath()) or (len(application.configBean.getAssetPath()) and application.configBean.getContext() neq  application.configBean.getAssetPath() and isValid('URL', 'http://' & cgi.server_name & application.configBean.getAssetPath()))>
+	<cfif isValid('URL', application.configBean.getAssetPath())>
 		<cfset var begin=application.configBean.getAssetPath() & "/" & site.getFilePoolID()>
 	<cfelse>
 		<cfset var begin=site.getFileAssetPath(argumentCollection=arguments)>
@@ -1019,6 +1019,16 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		</cfif>
 
 		<cfset cropper=imageRead(source)>
+
+		<!---
+			This a workaround to ensure jpegs can be process 
+			https://luceeserver.atlassian.net/browse/LDEV-1874
+		--->
+		<cfif listFindNoCase('jpg,jpeg',rsMeta.fileExt)>
+			<cfset var origCropper=cropper>
+			<cfset cropper = imageNew("", origCropper.width, origCropper.height, "rgb") />
+			<cfset imagePaste(cropper, origCropper, 0, 0) />
+		</cfif>
 
 		<cfif isDefined('arguments.x')>
 			<cfset imageCrop(cropper,arguments.x,arguments.y,arguments.width,arguments.height)>
@@ -1150,6 +1160,17 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	<cfif rsMeta.recordcount and not fileExists(source)>
 		<cfset getBean('fileWriter').copyFile(source="#application.configBean.getFileDir()#/#rsMeta.siteID#/cache/file/#rsMeta.fileID#.#rsMeta.fileExt#", destination=source)>
 	</cfif>
+</cffunction>
+
+<cffunction name="readSourceImage" output="false">
+	<cfargument name="fileID">
+	<cfset var rsMeta=readMeta(arguments.fileID)>
+	<cfset var source="#application.configBean.getFileDir()#/#rsMeta.siteID#/cache/file/#rsMeta.fileID#_source.#rsMeta.fileExt#">
+	<cfif rsMeta.recordcount and not fileExists(source)>
+		<cfset getBean('fileWriter').copyFile(source="#application.configBean.getFileDir()#/#rsMeta.siteID#/cache/file/#rsMeta.fileID#.#rsMeta.fileExt#", destination=source)>
+	</cfif>
+	<cfset source=imageRead(source)>
+	<cfreturn source>
 </cffunction>
 
 </cfcomponent>

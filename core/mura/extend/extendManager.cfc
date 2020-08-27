@@ -386,7 +386,7 @@ ExtendSetID in(<cfloop from="1" to="#setLen#" index="s">
 					</cfif>
 				</cfif>
 			<cfelseif rs.validation eq "Email">
-				<cfif REFindNoCase("^[^@%*<>' ]+@[^@%*<>' ]{1,255}\.[^@%*<>' ]{2,5}", trim(theValue)) eq 0>
+				<cfif REFindNoCase("^[a-zA-Z_0-9-'\+~]+(\.[a-zA-Z_0-9-'\+~]+)*@([a-zA-Z_0-9-]+\.)+[a-zA-Z]{2,7}$", trim(theValue)) eq 0>
 					<cfif len(rs.message)>
 						<cfset errors[rs.name]=rs.message>
 					<cfelse>
@@ -1811,6 +1811,7 @@ and tclassextendattributes.type='File'
 			for(var subtypetype in subtypeArray){
 
 				subType = getSubTypeBean();
+				subType.inject('contentRenderer',site.getContentRenderer());
 
 				if(subtypetype eq 'User'){
 					subType.setType( 2 );
@@ -1887,7 +1888,7 @@ and tclassextendattributes.type='File'
 					if(extendSetXML.xmlName == 'attributeset' && isdefined('extendSetXML.xmlAttributes.name')){
 						extsetorder=extsetorder+1;
 
-						extendset= subType.getExtendSetByName(  extendSetXML.xmlAttributes.name );
+						extendset= subType.getExtendSetByName( name=extendSetXML.xmlAttributes.name, useCache=true );
 
 						if(isDefined("extendSetXML.xmlAttributes.container")){
 							extendset.setContainer( extendSetXML.xmlAttributes.container );

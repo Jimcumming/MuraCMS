@@ -64,7 +64,7 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 	property name="displayStop" type="date" default="";
 	property name="body" type="string" default="" html="true";
 	property name="title" type="string" default="" required="true";
-	property name="menuTitle" type="string" default="";
+	property name="menuTitle" type="string" default="" listview=true;
 	property name="URLTitle" type="string" default="";
 	property name="HTMLTitle" type="string" default="";
 	property name="filename" type="string" default="";
@@ -134,7 +134,7 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 	property name="approvalGroupID" type="string" default="" comparable="false" persistent="false";
 	property name="approvalChainOverride" type="boolean" default="false" comparable="false" persistent="false";
 	property name="relatedContentSetData" type="any" persistent="false";
-	variables.primaryKey = 'contenthistid';
+	variables.primaryKey = 'contentid';
 	variables.entityName = 'content';
 	variables.instanceName= 'title';
 
@@ -274,6 +274,8 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 		var releasehour="";
 		var expireshour="";
 		var prop="";
+		var sessionData=getSession();
+
 		if ( isQuery(arguments.content) && arguments.content.recordcount ) {
 
 			for(prop in listToArray(arguments.content.columnlist)){
@@ -452,8 +454,18 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 			variables.instance.errors.filemissing=variables.settingsManager.getSite(variables.instance.siteID).getRBFactory().getKey("sitemanager.filemissing");
 		}
 
-		if (len(getValue('filename')) && variables.settingsManager.siteExists(listFirst(getValue('filename'),"/"))) {
-			variables.instance.errors.filename=variables.settingsManager.getSite(variables.instance.siteID).getRBFactory().getKey("sitemanager.content.filenamesiteidconflict");
+		if(not application.configBean.getValue(property='keepMetaKeywords',defaultValue=false)
+			&& len(getCanonicalURL())
+			&& !isValid('url',getCanonicalURL())){
+			variables.instance.errors.canonicalurl=variables.settingsManager.getSite(variables.instance.siteID).getRBFactory().getKey("sitemanager.canonicalurlinvalid");
+		}
+
+		if(!application.settingsManager.getSite(variables.instance.siteID).getContentRenderer().siteidinurls 
+			&& getValue('parentid') == '00000000000000000000000000000000001'){
+			var incomingFirstFilenameEntry=getBean('contentUtility').formatFilename(getValue('urltitle'));
+			if(variables.settingsManager.siteExists(incomingFirstFilenameEntry)) {
+				variables.instance.errors.filename=variables.settingsManager.getSite(variables.instance.siteID).getRBFactory().getKey("sitemanager.content.filenamesiteidconflict");
+			}
 		}
 
 		var errorCheck={};
@@ -740,7 +752,12 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 
 	public function getDisplayList() output=false {
 		if ( !len(variables.instance.responseDisplayFields) ) {
-			return "Image,Date,Title,Summary,Credits";
+			var renderer=getBean('settingsManager').getSite(get('siteid')).getContentRenderer();
+			if(structKeyExists(renderer,'defaultCollectionDisplayList')){
+				return renderer.defaultCollectionDisplayList;
+			} else {
+				return "Date,Title,Image,Summary,Credits,Tags";
+			}
 		} else {
 			return variables.instance.responseDisplayFields;
 		}
@@ -774,7 +791,13 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 				and isDefined('arguments.displayInterval.endafter')
 				and isNumeric(arguments.displayInterval.endafter)
 				or arguments.displayInterval.end == 'never' ) {
-					setValue('displayStop',dateAdd('yyyy',100,now()));
+					var tempdate=now();
+					if(isDate(getValue('displayStop'))){
+						var current=getValue('displayStop');
+					} else {
+						var current=tempdate;
+					}
+					setValue('displayStop',dateAdd('yyyy',100,createDateTime(year(tempdate), month(tempdate), day(tempdate), hour(current), minute(current), 0)));
 				}
 			}
 			if ( isDefined('arguments.displayInterval.end') && arguments.displayInterval.end == 'on'
@@ -928,13 +951,13 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 		}
 	}
 
-	public function getKidsQuery(required aggregation="false", required applyPermFilter="false", required size="0", required sortBy="#getValue('sortBy')#", required sortDirection="#getValue('sortDirection')#", required nextN="#getValue('nextN')#", today=now() ) output=false {
+	public function getKidsQuery(required aggregation="false", required applyPermFilter="false", required size="0", required sortBy="#getValue('sortBy')#", required sortDirection="#getValue('sortDirection')#", required nextN="#getValue('nextN')#", today=now(), categoryid='', useCategoryIntersect=false ) output=false {
 		arguments.parentid=getContentID();
 		arguments.siteid=getValue('siteid');
 		return variables.contentManager.getKidsQuery(argumentCollection=arguments);
 	}
 
-	public function getKidsIterator(required liveOnly="true", required aggregation="false", required applyPermFilter="false", required size="0", required sortBy="#getValue('sortBy')#", required sortDirection="#getValue('sortDirection')#", required nextN="#getValue('nextN')#", today=now())output=false {
+	public function getKidsIterator(required liveOnly="true", required aggregation="false", required applyPermFilter="false", required size="0", required sortBy="#getValue('sortBy')#", required sortDirection="#getValue('sortDirection')#", required nextN="#getValue('nextN')#", today=now(), categoryid='', useCategoryIntersect=false)output=false {
 		var q="";
 
 		var it=getBean("contentIterator");
@@ -1004,15 +1027,13 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 	}
 
 	public function getRelatedContentQuery(required boolean liveOnly="true", required date today="#now()#", string sortBy="orderno", string sortDirection="asc", string relatedContentSetID="", string name="", boolean reverse="false", required boolean navOnly="false", required any cachedWithin="#createTimeSpan(0,0,0,0)#") output=false {
-		return variables.contentManager.getRelatedContent(variables.instance.siteID, getContentHistID(), arguments.liveOnly, arguments.today, arguments.sortBy, arguments.sortDirection, arguments.relatedContentSetID, arguments.name, arguments.reverse, getContentID(),arguments.navOnly);
+		return variables.contentManager.getRelatedContent(variables.instance.siteID, getContentHistID(), arguments.liveOnly, arguments.today, arguments.sortBy, arguments.sortDirection, arguments.relatedContentSetID, arguments.name, arguments.reverse, getContentID(),arguments.navOnly,arguments.cachedWithin,'',this);
 	}
 
-	public function getRelatedContentIterator(required boolean liveOnly="true", required date today="#now()#", string sortBy="orderno", string sortDirection="asc", string relatedContentSetID="", string name="", boolean reverse="false", required boolean navOnly="false", required any cachedWithin="#createTimeSpan(0,0,0,0)#") output=false {
-		var q=getRelatedContentQuery(argumentCollection=arguments);
-		var it=getBean("contentIterator");
-		it.setQuery(q);
-		return it;
+	public function getRelatedContentIterator(required boolean liveOnly="true", required date today="#now()#", string sortBy="orderno", string sortDirection="asc", string relatedContentSetID="", string name="", boolean reverse="false", required boolean navOnly="false", required any cachedWithin="#createTimeSpan(0,0,0,0)#",entitytype="content") output=false {
+		return variables.contentManager.getRelatedContentIterator(variables.instance.siteID, getContentHistID(), arguments.liveOnly, arguments.today, arguments.sortBy, arguments.sortDirection, arguments.relatedContentSetID, arguments.name, arguments.reverse, getContentID(),arguments.navOnly,arguments.cachedWithin,'',this);
 	}
+
 
 	public function save() output=false {
 		var obj="";
@@ -1264,16 +1285,23 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 		return this;
 	}
 
-	public function getEditUrl(required boolean compactDisplay="false", tab, required complete="false", required hash="false") output=false {
+	//This is duplicated in the contentNavBean
+	public function getEditUrl(required boolean compactDisplay="false", tab, required complete="false", required hash="false", required instanceid='') output=false {
 		var returnStr="";
 		var topID="00000000000000000000000000000000001";
-		if ( listFindNoCase("Form,Component", variables.instance.type) ) {
+		if ( listFindNoCase("Form,Component", getValue('type')) ) {
 			topID=getValue('moduleid');
 		}
 		if ( arguments.compactDisplay ) {
 			arguments.compactDisplay='true';
 		}
-		returnStr= "#variables.configBean.getAdminPath(complete=arguments.complete)#/?muraAction=cArch.edit&contenthistid=#getContentHistId()#&contentid=#getContentId()#&type=#getValue('type')#&siteid=#getValue('siteid')#&topid=#topID#&parentid=#getValue('parentid')#&moduleid=#getValue('moduleid')#&compactdisplay=#arguments.compactdisplay#";
+
+		if(len(arguments.instanceid)){
+			returnStr= "#getBean('configBean').getAdminPath(complete=arguments.complete)#/?muraAction=cArch.editLive&contentId=#esapiEncode('url',getValue('contentid'))#&type=#esapiEncode('url',getValue('type'))#&siteId=#esapiEncode('url',getValue('siteid'))#&instanceid=#esapiEncode('url',arguments.instanceid)#&compactDisplay=#esapiEncode('url',arguments.compactdisplay)#";
+		} else {
+			returnStr= "#getBean('configBean').getAdminPath(complete=arguments.complete)#/?muraAction=cArch.edit&contenthistid=#esapiEncode('url',getValue('contenthistid'))#&contentid=#esapiEncode('url',getValue('contentid'))#&type=#esapiEncode('url',getValue('type'))#&siteid=#esapiEncode('url',getValue('siteid'))#&topid=#esapiEncode('url',topID)#&parentid=#esapiEncode('url',getValue('parentid'))#&moduleid=#esapiEncode('url',getValue('moduleid'))#&compactdisplay=#esapiEncode('url',arguments.compactdisplay)#";
+		}
+
 		if ( structKeyExists(arguments,"tab") ) {
 			returnStr=returnStr & "##" & arguments.tab;
 		}
@@ -1334,6 +1362,7 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 		var chain="";
 		var i="";
 		var permUtility=getBean('permUtility');
+		var sessionData=getSession();
 		var privateUserPool=getBean('settingsManager').getSite(getValue('siteid')).getPrivateUserPoolID();
 		if ( !arguments.applyExemptions || !( permUtility.isS2() || permUtility.isUserInGroup('admin',privateUserPool,0) ) ) {
 			while ( crumbs.hasNext() ) {
@@ -1433,7 +1462,7 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 	}
 
 	public function hasImage(usePlaceholder="true") {
-		return len(getValue('fileID')) && listFindNoCase('jpg,jpeg,png,gif,svg',getValue('fileEXT')) || arguments.usePlaceholder && len(variables.settingsManager.getSite(getValue('siteid')).getPlaceholderImgId());
+		return variables.contentManager.hasImage(bean=this,usePlaceholder=arguments.usePlaceholder);
 	}
 
 	public function getStatusID() output=false {
@@ -1456,7 +1485,7 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 
 	public function getStatus() output=false {
 		var status = '';
-		param name="sessionData" default={};
+		var sessionData=getSession();
 		param name="sessionData.rb" default="en_US";
 		switch ( getStatusID() ) {
 			case  0:
@@ -1485,7 +1514,7 @@ component extends="mura.bean.beanExtendable" entityName="content" table="tconten
 	}
 
 	function setCanonicalURL(CanonicalURL){
-		if(isValid('URL',arguments.canonicalURL)){
+		if(isValid('URL',arguments.canonicalURL) || !len(arguments.canonicalURL)){
 			variables.instance.metakeywords=arguments.canonicalURL;
 		}
 

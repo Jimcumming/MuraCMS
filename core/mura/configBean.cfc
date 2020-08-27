@@ -135,7 +135,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset variables.instance.encryptionKey=hash(getCurrentTemplatePath()) />
 <cfset variables.instance.uselegacysessions=false />
 <cfset variables.instance.customUrlVarDelimiters="_">
-<cfset variables.instance.strongPasswordRegex="(?=^.{7,15}$)(?=.*\d)(?![.\n])(?=.*[a-zA-Z]).*$">
+<cfset variables.instance.strongPasswordRegex="(?=^.{7,15}$)(?=.*\d)(?![.\n])(?=.*[a-z])(?=.*[A-Z]).*$">
 <cfset variables.instance.duplicateTransients=false>
 <cfset variables.instance.maxArchivedVersions=0 />
 <cfset variables.instance.postBundles=false />
@@ -143,6 +143,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset variables.instance.broadcastCachePurges=true />
 <cfset variables.instance.broadcastAppreloads=true />
 <cfset variables.instance.broadcastWithProxy=true />
+<cfset variables.instance.clearOldBroadcastCommands=true>
 <cfset variables.instance.readOnlyDatasource="" />
 <cfset variables.instance.readOnlyDbUsername="" />
 <cfset variables.instance.readOnlyDbPassword="" />
@@ -191,10 +192,15 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 <cfset variables.instance.adminDir="/admin"/>
 <cfset variables.instance.allowedIndexFiles="index.cfm,index.json,index.html"/>
 <cfset variables.instance.HSTSMaxAge=1200/>
-<cfset variables.instance.siteDir=""/>
+<cfset variables.instance.siteDir="sites"/>
 <cfset variables.instance.legacyAppcfcSupport=false>
 <cfset variables.instance.showUsageTags=true>
 <cfset variables.instance.offline404=true>
+<cfset variables.instance.externalConfig="">
+<cfset variables.instance.forceDirectoryStructure=true>
+<cfset variables.instance.suppressAPIParams=true>
+<cfset variables.instance.sessionBasedLockdown=true>
+<cfset variables.instance.autoPurgeOutputCache=true>
 
 <cffunction name="OnMissingMethod" output="false" hint="Handles missing method exceptions.">
 <cfargument name="MissingMethodName" type="string" required="true" hint="The name of the missing method." />
@@ -219,6 +225,16 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	<cfreturn "">
 </cfif>
 
+</cffunction>
+
+<cffunction name="passwordsExpire" output="false">
+	<cfset var expireIn=getValue(property="expirePasswords", defaultValue=0)>
+
+	<cfif not isNumeric(expireIn) or expireIn eq 0>	
+		<cfreturn false>
+	<cfelse>
+		<cfreturn true>
+	</cfif>
 </cffunction>
 
 <cffunction name="set" output="true">
@@ -247,13 +263,21 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		</cfif>
 	</cfloop>
 
-	<cfif directoryExists(expandPath('/muraWRM/sites/')) and not directoryExists(expandPath('/muraWRM/default/'))>
-		<cfset variables.instance.siteDir='sites'>
-	<cfelse>
+	<cfif not directoryExists(expandPath('/muraWRM/sites/')) and directoryExists(expandPath('/muraWRM/default/'))>
 		<cfset variables.instance.siteDir=''>
 	</cfif>
 
 	<cfset variables.instance.version=getVersionFromFile()>
+
+	<cfif isDefined('arguments.config.s3assets') and len(arguments.config.s3assets)>
+		<cfif right(arguments.config.s3assets,1) neq "/">
+			<cfset arguments.config.s3assets=arguments.config.s3assets & "/">
+		</cfif>
+		<cfset arguments.config.fileDir=arguments.config.s3assets & listRest(arguments.config.fileDir,"/")>
+		<cfif isDefined('arguments.config.assetdir')>
+			<cfset arguments.config.assetdir=arguments.config.s3assets & listRest(arguments.config.assetdir,"/")>
+		</cfif>
+	</cfif>
 
 	<cfset setWebRoot(arguments.config.webroot)/>
 	<cfset setContext(arguments.config.context)/>
@@ -1743,16 +1767,19 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 </cffunction>
 
 <cffunction name="getScheme" output="false">
-	<cfreturn YesNoFormat(getValue('adminSSL')) ? 'https' : 'http' />
+	<cfargument name="secure" default="#getValue('adminSSL')#">
+	<cfreturn (arguments.secure || YesNoFormat(getValue('adminSSL')) || getBean('utility').isHTTPS()) ? 'https' : 'http' />
 </cffunction>
 
 <cffunction name="getAdminPath" output="false">
 	<cfargument name="useProtocol" default="1">
-	<cfif len( getValue('admindomain') )>
+	<cfargument name="domain" default="#getValue('admindomain')#">
+
+	<cfif len( arguments.domain )>
 		<cfif arguments.useProtocol>
-			<cfreturn getScheme() & '://' & getValue('admindomain') & getServerPort() & getValue('context') & getValue('adminDir')>
+			<cfreturn getScheme() & '://' & arguments.domain & getServerPort() & getValue('context') & getValue('adminDir')>
 		<cfelse>
-			<cfreturn '//' & getValue('admindomain') & getServerPort() & getValue('context') & getValue('adminDir')>
+			<cfreturn '//' & arguments.domain & getServerPort() & getValue('context') & getValue('adminDir')>
 		</cfif>
 	<cfelse>
 		<cfreturn getValue('context') &  getValue('adminDir')>
@@ -1761,12 +1788,13 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 
 <cffunction name="getPluginsPath" output="false">
 	<cfargument name="useProtocol" default="1">
+	<cfargument name="secure" default="#getValue('adminSSL')#">
 	<cfif len(variables.instance.pluginsPath)>
 		<cfreturn variables.instance.pluginsPath>
 	<cfelse>
 		<cfif len( getValue('admindomain') )>
 			<cfif arguments.useProtocol>
-				<cfreturn getScheme() & '://' & getValue('admindomain') & getServerPort() & getValue('context') & "/plugins">
+				<cfreturn getScheme(arguments.secure) & '://' & getValue('admindomain') & getServerPort() & getValue('context') & "/plugins">
 			<cfelse>
 				<cfreturn '//' & getValue('admindomain') & getServerPort() & getValue('context') & "/plugins">
 			</cfif>
@@ -1778,12 +1806,17 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 
 <cffunction name="getCorePath" output="false">
 	<cfargument name="useProtocol" default="1">
+	<cfargument name="secure" default="#getValue('adminSSL')#">
 
 	<cfif len(variables.instance.corepath)>
 		<cfreturn variables.instance.corepath>
 	<cfelse>
 		<cfif len( getValue('admindomain') )>
-			<cfreturn getScheme() & '://' & getValue('admindomain') & getServerPort() & getValue('context') & "/core">
+			<cfif arguments.useProtocol>
+				<cfreturn getScheme(arguments.secure) & '://' & getValue('admindomain') & getServerPort() & getValue('context') & "/core">
+			<cfelse>
+				<cfreturn '//' & getValue('admindomain') & getServerPort() & getValue('context') & "/core">
+			</cfif>
 		<cfelse>
 			<cfreturn getValue('context') & "/core">
 		</cfif>
@@ -1792,6 +1825,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 
 <cffunction name="getRequirementsPath" output="false">
 	<cfargument name="useProtocol" default="1">
+	<cfargument name="secure" default="#getValue('adminSSL')#">
 	<cfreturn getCorePath(argumentCollection=arguments) & "/externals">
 </cffunction>
 
@@ -1808,26 +1842,35 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	<cfargument name="package">
 	<cfargument name="siteid" hint="Can be a list" default="">
 	<cfargument name="moduleid" default="00000000000000000000000000000000000">
-	<cfargument name="applyGlobal" default="true">
+	<cfargument name="forceSchemaCheck" default="false">
+
 	<cfset var rs="">
-	<cfif directoryExists(expandPath(arguments.dir))>
+	<cfset var expandedDir="">
+
+	<cfif reFindNoCase("^[a-zA-Z]:\\",arguments.dir)>
+		<cfset expandedDir=arguments.dir>
+	<cfelse>
+		<cfset expandedDir=expandPath(arguments.dir)>
+	</cfif>
+
+	<cfif directoryExists(expandedDir)>
 		<cfif not isDefined('arguments.package') or isDefined('arguments.package') and not len(arguments.package)>
 			<cfset arguments.package=replace(replace(right(arguments.dir, len(arguments.dir)-1), "\", "/", "ALL"),"/",".","ALL")>
 		</cfif>
-		<cfdirectory name="rs" directory="#expandPath(arguments.dir)#" action="list" filter="">
+		<cfdirectory name="rs" directory="#expandedDir#" action="list" filter="">
 		<cfloop query="rs">
 			<!--- Registers handlers last so that that all entities defined will be available --->
 			<cfif rs.type eq 'dir' and not listFindNoCase('archived,archive,handlers,eventhandlers,event_handlers',rs.name)>
-				<cfset registerBeanDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid)>
+				<cfset registerBeanDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid,forceSchemaCheck=arguments.forceSchemaCheck)>
 			<cfelseif rs.type neq 'dir' and listLast(rs.name,'.') eq 'cfc'>
-				<cfset registerBean(componentPath="#package#.#listFirst(rs.name,'.')#",siteid=arguments.siteid,moduleid=arguments.moduleid)>
+				<cfset registerBean(componentPath="#package#.#listFirst(rs.name,'.')#",siteid=arguments.siteid,moduleid=arguments.moduleid,forceSchemaCheck=arguments.forceSchemaCheck)>
 			</cfif>
 		</cfloop>
 
 		<!--- Registers handlers last so that that all entities defined will be available --->
 		<cfloop query="rs">
 			<cfif rs.type eq 'dir' and listFindNoCase('handlers,eventhandlers,event_handlers',rs.name)>
-				<cfset registerHandlerDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid,applyGlobal=arguments.applyGlobal)>
+				<cfset registerHandlerDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid)>
 			</cfif>
 		</cfloop>
 	</cfif>
@@ -1861,87 +1904,91 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cftry>
 			<cfset var metadata=getMetaData(createObject('component','#arguments.componentPath#'))>
 
+			<cfset var levelObj=metadata>
+
+			<cfloop condition="structKeyExists(levelObj,'extends')">
+				<cfif not isPublicFound and (isdefined('levelObj.public') and isBoolean(levelObj.public) and levelObj.public or isdefined('levelObj.access') && levelObj.access eq 'remote')>
+					<cfset isPublic=true>
+					<cfset isPublicFound=true>
+				</cfif>
+				<cfif not fieldsFound and isdefined('levelObj.fields') and len(levelObj.fields)>
+					<cfset fields=levelObj.fields>
+					<cfset fieldsFound=true>
+				</cfif>
+				<cfif listFindNoCase('beanORM,beanORMVersioned',listLast(levelObj.fullname,'.'))>
+					<cfset isORM=true>
+					<cfbreak>
+				</cfif>
+				<cfset levelObj=levelObj.extends>
+			</cfloop>
+			<cfset ioc.declareBean(beanName=beanName, dottedPath='#arguments.componentPath#', isSingleton =isSingleton )>
+			<cfif isDefined('metadata.entityname') and metadata.entityname neq beanName>
+				<cfset ioc.addAlias(metadata.entityname,beanName)>
+				<cfset beanName=metadata.entityname>
+			</cfif>
+
+			<cfset structDelete(application.objectMappings,beanName)>
+
+			<cfset entity=ioc.getBean(beanName)>
+
+			<cfif isORM>
+
+					<cfset entity.registerAsEntity()>
+
+					<cfif checkSchema>
+						<cfset entity.checkSchema()>
+					</cfif>
+
+					<cfloop list="#arguments.siteid#" index="local.i">
+						<cfif false and  entity.getEntityName() eq 'test'>
+							<cfdump var="#siteid#">
+							<cfdump var="#isPublic#">
+							<cfdump var="#arguments.moduleid#">
+							<cfdump var="#entity.getPublicAPI()#">
+							<cfdump var="#isORM#">
+							<cfdump var="#beanName#">
+							<cfabort>
+						</cfif>
+						<cfset getBean('settingsManager').getSite(local.i).getApi('json','v1').registerEntity(beanName,{
+							moduleid=arguments.moduleid,
+							public=isPublic,
+							fields=fields,
+							registered=true,
+							beanInstance=entity
+						})>
+					</cfloop>
+
+					<cfset request.muraORMchecked['#checkkey#']=true>
+			</cfif>
 			<cfcatch>
-					<cfif isBoolean(getValue('debuggingEnabled')) and getValue('debuggingEnabled')>
-						<cfrethrow>
-					<cfelse>
-						<cfset writeLog(type="Error", file="exception", text="Error registering #arguments.componentPath#: #serializeJSON(cfcatch.stacktrace)#")>
-						<cfreturn this>
+				<cfparam name="request.muraDeferredModuleErrors" default="#arrayNew(1)#">
+				<cfset ArrayAppend(request.muraDeferredModuleErrors,cfcatch)>
+				<cfset writeLog(type="Error", file="exception", text="Error Registering Bean #arguments.componentPath#: #serializeJSON(cfcatch)#")>
+				<cfset commitTracepoint(initTracepoint("Error Registering Bean #arguments.componentPath#"))>
+				<cfif isBoolean(getValue('debuggingEnabled')) and getValue('debuggingEnabled')>
+					<cfrethrow>
+				<cfelse>
+					<cfreturn this>
 				</cfif>
 			</cfcatch>
 		</cftry>
-
-		<cfset var levelObj=metadata>
-
-		<cfloop condition="structKeyExists(levelObj,'extends')">
-			<cfif not isPublicFound and (isdefined('levelObj.public') and isBoolean(levelObj.public) and levelObj.public or isdefined('levelObj.access') && levelObj.access eq 'remote')>
-				<cfset isPublic=true>
-				<cfset isPublicFound=true>
-			</cfif>
-			<cfif not fieldsFound and isdefined('levelObj.fields') and len(levelObj.fields)>
-				<cfset fields=levelObj.fields>
-				<cfset fieldsFound=true>
-			</cfif>
-			<cfif listFindNoCase('beanORM,beanORMVersioned',listLast(levelObj.fullname,'.'))>
-				<cfset isORM=true>
-				<cfbreak>
-			</cfif>
-			<cfset levelObj=levelObj.extends>
-		</cfloop>
-		<cfset ioc.declareBean(beanName=beanName, dottedPath='#arguments.componentPath#', isSingleton =isSingleton )>
-		<cfif isDefined('metadata.entityname') and metadata.entityname neq beanName>
-			<cfset ioc.addAlias(metadata.entityname,beanName)>
-			<cfset beanName=metadata.entityname>
-		</cfif>
-
-		<cfset structDelete(application.objectMappings,beanName)>
-
-		<cfset entity=ioc.getBean(beanName)>
-
-		<cfif isORM>
-
-				<cfset entity.registerAsEntity()>
-
-				<cfif checkSchema>
-					<cfset entity.checkSchema()>
-				</cfif>
-
-				<cfloop list="#arguments.siteid#" index="local.i">
-					<cfif false and  entity.getEntityName() eq 'test'>
-						<cfdump var="#siteid#">
-						<cfdump var="#isPublic#">
-						<cfdump var="#arguments.moduleid#">
-						<cfdump var="#entity.getPublicAPI()#">
-						<cfdump var="#isORM#">
-						<cfdump var="#beanName#">
-						<cfabort>
-					</cfif>
-					<cfset getBean('settingsManager').getSite(local.i).getApi('json','v1').registerEntity(beanName,{
-						moduleid=arguments.moduleid,
-						public=isPublic,
-						fields=fields,
-						registered=true,
-						beanInstance=entity
-					})>
-				</cfloop>
-
-				<cfset request.muraORMchecked['#checkkey#']=true>
-		</cfif>
 		<cfset commitTracepoint(tracepoint)>
 	<cfelseif getServiceFactory().containsBean(beanName)>
 		<cfset var entity=getBean(beanName)>
-		<cfloop list="#arguments.siteid#" index="local.i">
-			<cfset getBean('settingsManager').getSite(local.i).getApi('json','v1').registerEntity(
-				entityName=beanName,
-				config={
-				moduleid=arguments.moduleid,
-				public=application.objectMappings['#entity.getEntityName()#'].public,
-				fields=fields
-				},
-				beanInstance=entity,
-				registered=true
-			)>
-		</cfloop>
+		<cfif isDefined('entity.isORM') and entity.isOrm()>
+			<cfloop list="#arguments.siteid#" index="local.i">
+				<cfset getBean('settingsManager').getSite(local.i).getApi('json','v1').registerEntity(
+					entityName=beanName,
+					config={
+					moduleid=arguments.moduleid,
+					public=application.objectMappings['#entity.getEntityName()#'].public,
+					fields=fields
+					},
+					beanInstance=entity,
+					registered=true
+				)>
+			</cfloop>
+		</cfif>
 	</cfif>
 
 	<cfreturn this>
@@ -1952,7 +1999,6 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	<cfargument name="package">
 	<cfargument name="siteid" hint="Can be a list">
 	<cfargument name="moduleid" default="00000000000000000000000000000000000">
-	<cfargument name="applyGlobal" default="true">
 	<cfset var rs="">
 	<cfif directoryExists(expandPath(arguments.dir))>
 		<cfif not isDefined('arguments.package')>
@@ -1961,31 +2007,58 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 		<cfset var beanName=''>
 		<cfset var beanInstance=''>
 		<cfset var $=''>
+		<cfset var applyGlobal=false>
+	
 		<cfdirectory name="rs" directory="#expandPath(arguments.dir)#" action="list" filter="">
 		<cfloop query="rs">
 			<cfif rs.type eq 'dir'>
 				<cfif listFindNoCase('handlers,eventHandlers',rs.name)>
-					<cfset registerHandlerDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid,applyGlobal=arguments.applyGlobal)>
+					<cfset registerHandlerDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid)>
 				<cfelse>
-					<cfset registerBeanDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid,applyGlobal=arguments.applyGlobal)>
+					<cfset registerBeanDir(dir=listAppend(arguments.dir,rs.name,'/'),package=arguments.package & "." & rs.name,siteid=arguments.siteid,moduleid=arguments.moduleid)>
 				</cfif>
 			<cfelseif listLast(rs.name,'.') eq 'cfc'>
 				<cfset var tracePoint=initTracepoint("Registering Eventhandler: #package#.#beanName#")>
-				<cfset beanName=listFirst(rs.name,'.')>
-				<cfset beanInstance=createObject('component','#package#.#beanName#').init()>
-				<cfparam name="request.muraAppliedHandlers" default="#structNew()#">
+				<cftry>
+					<cfset beanName=listFirst(rs.name,'.')>
+					
+					<cfif not structKeyExists(application.appHandlerLookUp,'#package#.#beanName#')>
+						<cfset beanInstance=createObject('component','#package#.#beanName#').init()>
+						<cfset application.appHandlerLookUp['#package#.#beanName#']=beanInstance>
+					<cfelse>
+						<cfset beanInstance=application.appHandlerLookUp['#package#.#beanName#']>
+					</cfif>
 
-				<cfloop list="#arguments.siteid#" index="local.i">
-					<cfif structKeyExists(request.muraAppliedHandlers,'#package#.#beanName#')>
-						<cfset arguments.applyGlobal=false>
-					</cfif>
-					<cfset getBean('pluginManager').addEventHandler(component=beanInstance,siteid=local.i,applyglobal=arguments.applyGlobal)>
-					<cfset request.muraAppliedHandlers['#package#.#beanName#']=true>
-					<cfif isDefined('beanInstance.onApplicationLoad') and arguments.applyGlobal>
-						<cfset $=getBean('$').init()>
-						<cfset beanInstance.onApplicationLoad($=$,m=$,Mura=$,event=$.event())>
-					</cfif>
-				</cfloop>
+					<cfparam name="beanInstance.appliedSites" default="#structNew()#">
+					<cfparam name="beanInstance.appliedGlobal" default=false>
+					<cfparam name="beanInstance.appliedAppLoad" default=false>
+
+					<cfloop list="#arguments.siteid#" index="local.i">
+						<cfif not structKeyExists(beanInstance.appliedSites,'#local.i#')>
+							<cfif beanInstance.appliedGlobal>
+								<cfset applyGlobal=false>
+							<cfelse>
+								<cfset applyGlobal=true>
+							</cfif>
+							<cfset getBean('pluginManager').addEventHandler(component=beanInstance,siteid=local.i,applyglobal=applyGlobal)>
+							<cfset beanInstance.appliedGlobal=true>
+							<cfif isDefined('beanInstance.onApplicationLoad') and not beanInstance.appliedAppLoad>
+								<cfset $=getBean('$').init()>
+								<cfset beanInstance.onApplicationLoad($=$,m=$,Mura=$,event=$.event())>
+								<cfset beanInstance.appliedAppLoad=true>
+							</cfif>
+						</cfif>
+					</cfloop>
+					<cfcatch>
+						<cfparam name="request.muraDeferredModuleErrors" default="#arrayNew(1)#">
+						<cfset ArrayAppend(request.muraDeferredModuleErrors,cfcatch)>
+						<cfset commitTracepoint(initTracepoint("Error Registering Handler #package#.#beanName#"))>
+						<cfset writeLog(type="Error", file="exception", text="Error Registering Handler #package#.#beanName#: #serializeJSON(cfcatch)#")>
+						<cfif isBoolean(getValue('debuggingEnabled')) and getValue('debuggingEnabled')>
+							<cfrethrow>
+						</cfif>
+					</cfcatch>
+				</cftry>
 				<cfset commitTracepoint(tracepoint)>
 			</cfif>
 		</cfloop>

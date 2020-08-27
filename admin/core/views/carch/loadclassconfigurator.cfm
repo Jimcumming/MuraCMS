@@ -93,7 +93,7 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	<cfset $.event('contentBean',$.getBean('content').loadBy(contehistid=rc.contenthistid))>
 
 	<cfif rc.classid eq "category_summary" and not application.configBean.getValue(property='allowopenfeeds',defaultValue=false)>
-		<cfset rc.classid='navigation'>
+		<cfset rc.classid='nav'>
 	</cfif>
 
 	<cfif rc.classid eq 'form_responses'>
@@ -109,7 +109,13 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 	<cfif rc.container eq 'layout'>
 		<cfset configFileSuffix="#rc.classid#/layout/index.cfm">
 	<cfelse>
-		<cfset configFileSuffix="#rc.classid#/configurator.cfm">
+		<cfset objectConfig=rc.$.siteConfig().getDisplayObject(rc.classid)>
+
+		<cfif isDefined('objectConfig.external') and objectConfig.external>
+			<cfset configFileSuffix="external/configurator.cfm">
+		<cfelse>
+			<cfset configFileSuffix="#rc.classid#/configurator.cfm">
+		</cfif>
 	</cfif>
 
 	<cfset configFile=rc.$.siteConfig().lookupDisplayObjectFilePath(configFileSuffix)>

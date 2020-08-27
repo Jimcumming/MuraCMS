@@ -138,7 +138,6 @@
 
 		<!-- nice-select: select box replacement (sidebar configurator only) -->
 		<cfif rc.sourceFrame neq 'modal'>
-	    <link rel="stylesheet" href="#application.configBean.getContext()##application.configBean.getAdminDir()#/assets/css/nice-select.min.css">
 			<script src="#application.configBean.getContext()##application.configBean.getAdminDir()#/assets/js/jquery.nice-select.min.js" type="text/javascript"></script>
 	    <script type="text/javascript">
 	    	$(document).ready(function() {
@@ -249,6 +248,7 @@
 			});
 
 			mura.init({
+				inAdmin:true,
 				context:'#esapiEncode("javascript",rc.$.globalConfig('context'))#',
 				themepath:'#application.settingsManager.getSite(rc.siteID).getThemeAssetPath()#',
 				siteid:<cfif isDefined('session.siteid') and len(session.siteid)>'#esapiEncode("javascript",session.siteid)#'<cfelse>'default'</cfif>

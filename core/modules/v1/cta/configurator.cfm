@@ -11,12 +11,14 @@
 
     <cfparam name="rc.isnew" default="false">
 
-    <cfparam name="objectparams.type" default="modal">
+    <cfparam name="objectparams.type" default="drawer">
     <cfparam name="objectparams.anchorx" default="center">
     <cfparam name="objectparams.anchory" default="center">
     <cfparam name="objectparams.animate" default="ttb">
     <cfparam name="objectparams.animatespeed" default="fast">
     <cfparam name="objectparams.width" default="md">
+    <cfparam name="objectparams.statsid" default="#createUUID()#">
+    <cfparam name="objectparams.instanceclass" default="">
 
     <cfif not isnumeric(objectparams.scroll)>
         <cfset objectparams.scroll=0>
@@ -223,9 +225,9 @@
                 <div class="mura-control-group">
                     <label class="mura-control-label">#application.rbFactory.getKeyValue(session.rb,'cta.type')#</label>
                     <select id="type" name="type" class="objectParam">
+                        <option value="drawer"<cfif "drawer" eq objectparams.type> selected</cfif>>#application.rbFactory.getKeyValue(session.rb,'cta.drawer')#</option>
                         <option value="modal"<cfif "modal" eq objectparams.type> selected</cfif>>#application.rbFactory.getKeyValue(session.rb,'cta.modal')#</option>
                         <option value="bar"<cfif "bar" eq objectparams.type> selected</cfif>>#application.rbFactory.getKeyValue(session.rb,'cta.bar')#</option>
-                        <option value="drawer"<cfif "drawer" eq objectparams.type> selected</cfif>>#application.rbFactory.getKeyValue(session.rb,'cta.drawer')#</option>
                         <option value="inline"<cfif "inline" eq objectparams.type> selected</cfif>>#application.rbFactory.getKeyValue(session.rb,'cta.inline')#</option>
                     </select>
                 </div>
@@ -332,13 +334,12 @@
                 </div>
             </div>
 
-            <cfparam name="attributes.params.cssclass" default="">
-            <div class="mura-control-group">
-				<label>
-					#application.rbFactory.getKeyValue(session.rb,'collections.cssclass')#
-				</label>
-				<input name="cssclass" class="objectParam" type="text" value="#esapiEncode('html_attr',attributes.params.cssclass)#" maxlength="255">
-			</div>
+	      <div class="mura-control-group">
+					<label>
+						#application.rbFactory.getKeyValue(session.rb,'collections.cssclass')#
+					</label>
+					<input name="instanceclass" class="objectParam" type="text" value="#esapiEncode('html_attr',objectparams.instanceclass)#" maxlength="255">
+					</div>
           </div>
         </div>
       </div> <!--- /end panel 3 --->
@@ -350,6 +351,7 @@
 <input name="objectid" class="objectParam" type="hidden" value=""/>
 <input name="trim-params" class="objectParam" type="hidden" value="true"/>
 <input name="queue" class="objectParam" type="hidden" value="false"/>
+<input name="statsid" class="objectParam" type="hidden" value="#esapiEncode('html_attr',objectparams.statsid)#"/>
 <input name="render" class="objectParam" type="hidden" value="client"/>
 <input name="preview" type="hidden" value=""/>
 <script>
@@ -474,6 +476,8 @@
     		})
 
         </cfif>
+
+				window.configuratorInited=true;
     });
 </script>
 </cfoutput>

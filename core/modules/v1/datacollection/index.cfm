@@ -72,7 +72,7 @@
         <cfelse>
           <div class="mura-async-object"
             data-object="form"
-			data-sam="spade"
+						data-sam="spade"
             data-objectname="Form"
             data-objectid="#esapiEncode('html_attr',bean.getContentID())#"
             data-responsechart="#esapiEncode('html_attr',bean.getResponseChart())#"
@@ -83,6 +83,8 @@
     <cfelse>
         <cfif not bean.getIsNew()>
         	<cfif bean.getIsOnDisplay()>
+					<cfset $.event('objectid',bean.getContentid())>
+					<cfset $.event('formid',bean.getContentid())>
 	    		<cfset variables.rsForm=bean.getAllValues()>
 		          #$.getBean('dataCollectionBean')
 		            .set($.event().getAllValues())

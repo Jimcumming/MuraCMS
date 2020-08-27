@@ -165,7 +165,7 @@
 <cfargument name="siteid" type="string" default="" required="yes"/>
 <cfargument name="displaypoolid" type="string" default="" required="yes"/>
 	<cfset var webroot=expandPath('/muraWRM')>
-
+	<cfset var basedir="">
 	<!--- make sure that the file cache directory exists, for node level files --->
 	<cfif not directoryExists("#variables.configBean.getFileDir()#/#arguments.siteid#/cache/file")>
 
@@ -205,7 +205,7 @@
 			</cfif>
 		</cfif>
 	<cfelse>
-		<cfset var basedir="#webroot#/#arguments.siteid#/includes">
+		<cfset basedir="#webroot#/#arguments.siteid#/includes">
 
 		<cfif not directoryExists(basedir) and arguments.displaypoolid neq arguments.siteid>
 			<cfset basedir="#webroot#/#arguments.displaypoolid#/includes">
@@ -1127,8 +1127,7 @@ Blog: www.codfusion.com--->
 	<cfif len(arguments.href) and listFindNoCase("http,https",listFirst(arguments.href,":"))>
 		<cfset var returnProtocol = listFirst(arguments.href,':') />
 		<cfset var returnDomain = reReplace(arguments.href, "^\w+://([^\/:]+)[\w\W]*$", "\1", "one") />
-
-		<cfif not listfindNoCase(getBean('settingsManager').getAccessControlOriginDomainList(),returnProtocol & "://" & returnDomain) and len(returnDomain)>
+		<cfif not listfindNoCase(getBean('settingsManager').getAccessControlOriginDomainList(),returnDomain) and len(returnDomain)>
 			<cfif len(cgi.http_host)>
 				<cfset arguments.href=replace(arguments.href,returnDomain,listFirst(cgi.http_host,":"))>
 			<cfelse>

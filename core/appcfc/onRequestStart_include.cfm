@@ -90,17 +90,16 @@ if ( isDefined("onApplicationStart") ) {
 					not application.appInitialized
 					or structKeyExists(url,application.appReloadKey)
 				)
-			and !(
-				isDefined('url.method') && url.method == 'processAsyncObject'
-			)
 		)
 	) ) {
 		lock name="appInitBlock#application.instanceID#" type="exclusive" timeout="200" {
+			if(!(isDefined('url.method') && url.method == 'processAsyncObject')){
 			//  Since the request may have had to wait twice, this code still needs to run
-			if ( (not application.appInitialized || structKeyExists(url,application.appReloadKey)) ) {
-				include "onApplicationStart_include.cfm";
-				if ( isdefined("setupApplication") ) {
-					setupApplication();
+				if ( (not application.appInitialized || structKeyExists(url,application.appReloadKey)) ) {
+					include "onApplicationStart_include.cfm";
+					if ( isdefined("setupApplication") ) {
+						setupApplication();
+					}
 				}
 			}
 		}
@@ -119,6 +118,27 @@ for(secret in listToArray(structKeyList(request.muraSecrets))){
 	structDelete(request.muraSysEnv,'#secret#');
 }
 */
+
+for(handlerKey in application.appHandlerLookUp){
+	handler=application.appHandlerLookUp['#handlerKey#'];
+	if(structKeyExists(handler,'onApplicationLoad') 
+		&& (!structKeyExists(handler,'appliedAppLoad') || !handler.appliedAppLoad)
+	){
+		lock name="appInitBlock#application.instanceID#" type="exclusive" timeout="200" {
+			lock name="setSites#application.instanceID#" type="exclusive" timeout="200" {
+				if((!structKeyExists(handler,'appliedAppLoad') || !handler.appliedAppLoad)){
+					try{
+						$=getBean('$').init();
+						handler.onApplicationLoad($=$,m=$,Mura=$,event=$.event());
+						handler.appliedAppLoad=true;
+					} catch(any e){
+						writeLog(type="Error", file="exception", text="Error Registering Handler: #serializeJSON(e)#");
+					}
+				}
+			}
+		}
+	}
+}
 
 application.userManager.setUserStructDefaults();
 sessionData=application.userManager.getSession();

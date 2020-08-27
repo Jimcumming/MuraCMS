@@ -930,7 +930,7 @@ buttons: {
 			external =true;
 		}
 
-		var pars = 'muraAction=cArch.loadSelectedRelatedContent&compactDisplay=true&contenthistid=' + contenthistid + '&type=' + type + '&subtype=' + subtype + '&siteid=' + siteid + '&relatedcontentsetid=' + relatedcontentsetid + '&relateditems=' + relateditems + '&external=' + external +'&cacheid=' + Math.random();
+		var pars = 'muraAction=cArch.loadSelectedRelatedContent&compactDisplay=true&contenthistid=' + contenthistid + '&type=' + type + '&subtype=' + subtype + '&siteid=' + siteid + '&relatedcontentsetid=' + relatedcontentsetid + '&relateditems=' + encodeURIComponent(relateditems) + '&external=' + external +'&cacheid=' + Math.random();
 
 		var d = $('#selectedRelatedContent');
 		d.html('<div class="load-inline"></div>');
@@ -3288,29 +3288,46 @@ buttons: {
 
 	},
 
-	requestDisplayObjectParams:function(fn){
-
+	requestDisplayObjectParams:function(fn,targetFrame){
+		targetFrame=targetFrame || 'modal';
+		var callback=fn;
 		siteManager.frontEndProxyListeners.push(
-			{cmd:'setObjectParams',
-			fn:function(params){
+			{
+				cmd:'customObjectParamsRequest',
+				fn:function(params){
 					$(".objectParam, .objectparam").each(function(){
 						var item=$(this);
 
-						var p=item.attr('name').toLowerCase();
+						if(typeof item.attr('name') =='string'){
+							var p=item.attr('name').toLowerCase();
 
-						if(typeof params[p] != 'undefined'){
-							item.val(params[p]);
-							if(item.attr('id') && typeof CKEDITOR.instances[item.attr('id')] != 'undefined'){
-								CKEDITOR.instances[item.attr('id')].updateElement();
+							if(typeof params[p] != 'undefined'){
+
+								if(item.is(':radio')){
+									if(item.val().toString()==params[p].toString()){
+										item.attr('checked',true);
+									}
+
+								} else {
+									item.val(params[p].toString());
+
+									if(item.is('SELECT')){
+										item.niceSelect('update');
+									}
+
+									if(item.attr('id') && typeof CKEDITOR.instances[item.attr('id')] != 'undefined'){
+										CKEDITOR.instances[item.attr('id')].updateElement();
+									}
+								}
+
 							}
 						}
 
 					});
 
 					siteManager.initConfiguratorParams();
-					fn(params);
+					callback(params);
 				}
-
 			}
 		);
 
@@ -3323,7 +3340,8 @@ buttons: {
 						frontEndProxy.post({
 							cmd:'requestObjectParams',
 							instanceid:url.instanceid,
-							targetFrame:'modal'
+							targetFrame:targetFrame,
+							callback:'customObjectParamsRequest'
 							}
 						);
 					}
@@ -3332,7 +3350,8 @@ buttons: {
 				frontEndProxy.post({
 					cmd:'requestObjectParams',
 					instanceid:url.instanceid,
-					targetFrame:'modal'
+					targetFrame:targetFrame,
+					callback:'customObjectParamsRequest'
 					}
 				);
 			}
@@ -3345,7 +3364,7 @@ buttons: {
 		var listeners=siteManager.frontEndProxyListeners;
 
 		for (var i=0; i < listeners.length; i++){
-			if(listeners[i].cmd=parameters.cmd){
+			if(listeners[i].cmd==parameters.cmd){
 				if(parameters.params){
 					listeners[i].fn(parameters.params);
 				} else {

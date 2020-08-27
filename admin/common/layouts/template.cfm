@@ -309,6 +309,16 @@
      			</cfif>
 
 					<cfif rc.renderMuraAlerts>
+						<cfset expirePasswordsIn=rc.$.getBean('configBean').getValue(property="expirePasswords", defaultValue=0)>
+						<cfif isNumeric(expirePasswordsIn) and expirePasswordsIn and rc.$.currentUser().get('passwordExpired') and not structKeyExists(session.mura.alerts['#session.siteID#'],'passwordexpirednotice')>
+							<div class="alert alert-error">
+								<span>
+									<a data-alertid="passwordexpirednotice" class="close alert-dismiss" data-dismiss="alert"><i class="mi-close"></i></a>
+										#rc.$.rbKey("layout.passwordexpirednotice")#
+								</span>
+							</div>
+						</cfif>
+
 						<cfif isdefined('session.hasdefaultpassword') and not structKeyExists(session.mura.alerts['#session.siteID#'],'defaultpasswordnotice')>
 							<div class="alert alert-error">
 								<span>
@@ -486,6 +496,7 @@
 				});
 
 			mura.init({
+			inAdmin:true,
 			context:'#esapiEncode("javascript",rc.$.globalConfig('context'))#',
 			themepath:'#application.settingsManager.getSite(rc.siteID).getThemeAssetPath()#',
 			siteid:<cfif isDefined('session.siteid') and len(session.siteid)>'#esapiEncode("javascript",session.siteid)#'<cfelse>'default'</cfif>

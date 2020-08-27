@@ -197,12 +197,19 @@
 			</cfif>
 
 			<cftry>
-				<cfset variables.fileWriter.copyFile(source=OriginalImageFile,destination=NewImageSource)>
+				<cfset variables.fileWriter.copyFile(source=OriginalImageFile,destination=NewImageSource,mode="744")>
 
 				<cfset resizeImage(height=arguments.height,width=arguments.width,image=NewImageSource)>
 
+				<cfif listFirst(expandPath(NewImageSource),':') eq 's3' and len(arguments.siteID) and getBean('settingsManager').getSite(arguments.siteid).getContentRenderer().directImages>
+					<cftry>
+					<cfset storeSetACL(expandPath(NewImageSource),[{group="all", permission="read"}])>
+					<cfcatch></cfcatch>
+					</cftry>
+				</cfif>
+
 				<cfif not doesImageFileExist(NewImageSource,arguments.attempt)>
-					<cfset variables.fileWriter.copyFile(source=OriginalImageFile,destination=NewImageSource)>
+					<cfset variables.fileWriter.copyFile(source=OriginalImageFile,destination=NewImageSource,mode="744")>
 				</cfif>
 
 				<cfcatch>
@@ -223,11 +230,22 @@
 		<cfargument name="Image" required="true" />
 		<cfargument name="Height" default="AUTO" />
 		<cfargument name="Width" default="AUTO" />
-		<cfset var thisImage=imageRead(arguments.image)>
+		<cfset var ThisImage=imageRead(arguments.image)>
 		<cfset var ImageAspectRatio=0>
 		<cfset var NewAspectRatio=0>
 		<cfset var CropX=0>
 		<cfset var CropY=0>
+
+		<!---
+			This a workaround to ensure jpegs can be process 
+			https://luceeserver.atlassian.net/browse/LDEV-1874
+		--->
+		<cfif listFindNoCase('jpg,jpeg',listLast(ThisImage.source,'.')) >
+			<cfset var origImage=ThisImage>
+			<cfset ThisImage = imageNew("", ThisImage.width, ThisImage.height, "rgb") />
+			<cfset imagePaste(ThisImage, origImage, 0, 0) />
+		</cfif>
+
 
 		<cfif arguments.Width eq "AUTO">
 			<cfif ThisImage.height gt arguments.height>

@@ -51,6 +51,8 @@ param name="application.sessionTrackingThrottle" default=true;
 param name="application.instanceID" default=createUUID();
 param name="application.CFVersion" default=listFirst(SERVER.COLDFUSION.PRODUCTVERSION);
 param name="application.setupComplete" default=false;
+param name="application.appHandlerLookUp" default={};
+
 request.muraAppreloaded=true;
 
 if ( left(server.coldfusion.productversion,5) == "9,0,0" || listFirst(server.coldfusion.productversion) < 9 ) {
@@ -95,15 +97,12 @@ if ( !application.setupComplete || (not application.appInitialized || structKeyE
 if ( application.setupComplete ) {
 	application.appInitialized=false;
 	request.muraShowTrace=true;
-	application.appInitialized=false;
-	request.muraShowTrace=true;
 	variables.iniPath = "#variables.basedir#/config/settings.ini.cfm";
 	variables.iniSections=getProfileSections(variables.iniPath);
 	variables.iniProperties=structNew();
 
 	for(variables.p in listToArray(variables.iniSections.settings)){
 		variables.envVar='MURA_#UCASE(variables.p)#';
-		//if(!structKeyExists(request.muraSecrets,variables.envVar)){
 			if ( structKeyExists(request.muraSysEnv,variables.envVar) ) {
 				variables.iniProperties[variables.p]=request.muraSysEnv[variables.envVar];
 			} else {
@@ -118,17 +117,25 @@ if ( application.setupComplete ) {
 				variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-4);
 				variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
 			}
-		//}
 	}
 
 	for(variables.p in listToArray(variables.iniSections[ variables.iniProperties.mode])){
-		variables.envVar='MURA_#UCASE(variables.p)#';
-		//if(!structKeyExists(request.muraSecrets,variables.envVar)){
-			if ( structKeyExists(request.muraSysEnv,variables.envVar) ) {
-				variables.iniProperties[variables.p]=request.muraSysEnv[variables.envVar];
-			} else {
-				variables.iniProperties[variables.p]=getProfileString("#variables.basedir#/config/settings.ini.cfm", variables.iniProperties.mode,variables.p);
-			}
+		variables.iniProperties[variables.p]=getProfileString("#variables.basedir#/config/settings.ini.cfm", variables.iniProperties.mode,variables.p);
+		if ( left(variables.iniProperties[variables.p],2) == "${"
+					and right(variables.iniProperties[variables.p],1) == "}" ) {
+			variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-3);
+			variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
+		} else if ( left(variables.iniProperties[variables.p],2) == "{{"
+					and right(variables.iniProperties[variables.p],2) == "}}" ) {
+			variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-4);
+			variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
+		}
+	}
+
+	for (variables.envVar in request.muraSysEnv) {
+		if(listFirst(variables.envVar,"_")=='MURA'){
+			variables.p=listRest(variables.envVar,"_");
+			variables.iniProperties[variables.p]=request.muraSysEnv[variables.envVar];
 			if ( left(variables.iniProperties[variables.p],2) == "${"
 						and right(variables.iniProperties[variables.p],1) == "}" ) {
 				variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-3);
@@ -138,9 +145,8 @@ if ( application.setupComplete ) {
 				variables.iniProperties[variables.p]=mid(variables.iniProperties[variables.p],3,len(variables.iniProperties[variables.p])-4);
 				variables.iniProperties[variables.p] = evaluate(variables.iniProperties[variables.p]);
 			}
-		//}
+		}
 	}
-
 
 	try {
 		if ( !structKeyExists(variables.iniProperties,"encryptionkey") || !len(variables.iniProperties["encryptionkey"]) ) {
@@ -180,6 +186,7 @@ if ( application.setupComplete ) {
   }
 
 	application.configBean=new mura.configBean().set(variables.iniProperties);
+	application.appHandlerLookUp={};
 
 	variables.serviceFactory=new mura.bean.beanFactory("/mura",{
 			recurse=true,
@@ -305,6 +312,7 @@ if ( application.setupComplete ) {
 		variables.serviceFactory.addAlias("category","categoryBean");
 		variables.serviceFactory.addAlias("categoryFeed","categoryFeedBean");
 		variables.serviceFactory.addAlias("userFeed","userFeedBean");
+		variables.serviceFactory.addAlias("groupFeed","userFeedBean");
 		variables.serviceFactory.addAlias("comment","contentCommentBean");
 		variables.serviceFactory.addAlias("commentFeed","contentCommentFeedBean");
 		variables.serviceFactory.addAlias("stats","contentStatsBean");
@@ -377,6 +385,7 @@ if ( application.setupComplete ) {
 		} catch (any cfcatch) {}
 	}
 
+
 	application.objectMappings={};
 	application.objectMappings.bundleableBeans="";
 	application.objectMappings.versionedBeans="";
@@ -418,31 +427,62 @@ if ( application.setupComplete ) {
 
 	variables.serviceFactory.getBean('contentCategoryAssign');
 
+	param name="application.muraExternalConfig" default={};
+
+	if (len(application.configBean.getValue('externalConfig'))) {
+
+		if(isValid('url',application.configBean.getValue('externalConfig'))){
+			httpService=application.configBean.getHTTPService();
+			httpService.setMethod("get");
+			httpService.setCharset("utf-8");
+			httpService.setURL(application.configBean.getValue('externalConfig'));
+			config=httpService.send().getPrefix().filecontent;
+		} else if (fileExists(application.configBean.getValue('externalConfig'))) {
+			config=fileRead(application.configBean.getValue('externalConfig'),'utf-8');
+		}
+		if(isJSON(config)){
+			application.muraExternalConfig=deserializeJSON(config);
+		} else {
+			writeLog(type="Error", file="exception", text="Error reading external config from  '#application.configBean.getValue('externalConfig')#': #config#");
+		}
+	}
+
+	if(	isdefined('url.applyDBUpdates')
+			&& isDefined('application.muraExternalConfig.global.entities')
+			&& isArray(application.muraExternalConfig.global.entities)
+		){
+		entities=application.muraExternalConfig.global.entities;
+		for(entity in entities){
+			if(isJSON(entity)){
+				getServiceFactory().declareBean(json=entity,fromExternalConfig=true);
+			}
+		}
+	}
+
+	request.muraattachormlinks=true;
 	application.serviceFactory.loadDynamicEntities();
+	request.muraattachormlinks=false;
 
 	application.appAutoUpdated=false;
+
 	variables.serviceList="utility,pluginManager,settingsManager,contentManager,eventManager,contentRenderer,contentUtility,contentGateway,categoryManager,clusterManager,contentServer,changesetManager,scriptProtectionFilter,permUtility,emailManager,loginManager,mailinglistManager,userManager,dataCollectionManager,feedManager,sessionTrackingManager,favoriteManager,raterManager,dashboardManager,autoUpdater";
 	//  The ad manager has been removed, but may be there in certain legacy conditions
 	if ( application.serviceFactory.containsBean('advertiserManager') ) {
 		variables.serviceList=listAppend(variables.serviceList,'advertiserManager');
 	}
-	//  These application level services use the beanServicePlaceHolder to lazy load the bean
+	//  These application level services
 
 	for(variables.i in listToArray(variables.serviceList)){
 		variables.tracepoint=variables.tracer.initTracepoint("Instantiating #variables.i#");
-		try {
-			application["#variables.i#"]=application.serviceFactory.getBean("#variables.i#");
-		} catch (any cfcatch) {
-			if ( application.configBean.getDebuggingEnabled() ) {
-				writeDump( var=variables.i );
-				writeDump( var=cfcatch, abort=true );
-			}
-		}
+		application["#variables.i#"]=application.serviceFactory.getBean("#variables.i#");
 		variables.tracer.commitTracepoint(variables.tracepoint);
-		application.mura=application.serviceFactory.getBean('mura');
 	}
 
-	//  End beanServicePlaceHolders
+	application.mura=application.serviceFactory.getBean('mura');
+	request.muraattachormlinks=true;
+
+	//  End
+
 	variables.temp='';
 	application.badwords = ReReplaceNoCase(trim(variables.temp), "," , "|" , "ALL");
 	variables.tracepoint=variables.tracer.initTracepoint("Instantiating classExtensionManager");
@@ -455,6 +495,7 @@ if ( application.setupComplete ) {
 	if ( fileExists(ExpandPath("/muraWRM/config/settings.custom.managers.cfm")) ) {
 		include "/muraWRM/config/settings.custom.managers.cfm";
 	}
+
 	variables.basedir=expandPath("/muraWRM");
 	variables.mapprefix="";
 	if ( len(application.configBean.getValue('encryptionKey')) ) {
@@ -678,7 +719,7 @@ if ( application.setupComplete ) {
 		if ( !fileExists(variables.basedir & "/robots.txt") ) {
 			local.fileWriter.copyFile(source="#variables.basedir#/core/templates/robots.template.cfm", destination="#variables.basedir#/robots.txt");
 		}
-		if ( !fileExists(variables.basedir & "/web.config") ) {
+		if ( findNoCase('Windows',Server.OS.Name) && !fileExists(variables.basedir & "/web.config") ) {
 			local.fileWriter.copyFile(source="#variables.basedir#/core/templates/web.config.template.cfm", destination="#variables.basedir#/web.config");
 		}
 		if ( !fileExists(variables.basedir & "/core/vendor/cfformprotect/cffp.ini.cfm") ) {
@@ -883,9 +924,9 @@ if ( application.setupComplete ) {
 	commitTracePoint(variables.tracePoint);
 
 	//These were added to remove previous resource bundles tha were two specific
-	if(fileExists(expandPath("/murawrm/core/mura/resourceBundle/resources/en_US.properties"))){
+	if(fileExists(expandPath("/muraWRM/core/mura/resourceBundle/resources/en_US.properties"))){
 		local.fileWriter=application.Mura.getBean('fileWriter');
-		local.rs=application.Mura.getBean('fileWriter').getDirectoryList(expandPath("/murawrm/core/mura/resourceBundle/resources/"));
+		local.rs=application.Mura.getBean('fileWriter').getDirectoryList(expandPath("/muraWRM/core/mura/resourceBundle/resources/"));
 		for(local.i=1;local.i <= local.rs.recordcount;local.i++){
 			if(listLen(listFirst(local.rs.name[local.i],'.'),'_') > 1){
 				fileDelete(local.rs.directory[local.i] & "/" & local.rs.name[local.i]);
@@ -893,15 +934,52 @@ if ( application.setupComplete ) {
 		}
 	}
 
-	if(fileExists(expandPath("/murawrm/core/modules/v1/core_assets/resource_bundles/en_US.properties"))){
+	if(fileExists(expandPath("/muraWRM/core/modules/v1/core_assets/resource_bundles/en_US.properties"))){
 		local.fileWriter=application.Mura.getBean('fileWriter');
-		local.rs=application.Mura.getBean('fileWriter').getDirectoryList(expandPath("/murawrm/core/modules/v1/core_assets/resource_bundles/"));
+		local.rs=application.Mura.getBean('fileWriter').getDirectoryList(expandPath("/muraWRM/core/modules/v1/core_assets/resource_bundles/"));
 		for(local.i=1;local.i <= local.rs.recordcount;local.i++){
 			if(listLen(listFirst(local.rs.name[local.i],'.'),'_') > 1 && !listFind('zh_TW.properties,zh_CN.properties',local.rs.name[local.i])){
 				fileDelete(local.rs.directory[local.i] & "/" & local.rs.name[local.i]);
 			}
 		}
 	}
+
+	if(isDefined('application.muraExternalConfig.global.modules') && isStruct(application.muraExternalConfig.global.modules)){
+		modules=application.muraExternalConfig.global.modules;
+		sites=application.configBean.getBean('settingsManager').getSites();
+		for(m in modules){
+			if(isStruct(modules['#m#'])){
+				module=modules['#m#'];
+				module.object=m;
+				module.displayObjectFile="external/index.cfm";
+				module.external=true;
+				for(s in sites){
+					sites['#s#'].registerDisplayObject(argumentCollection=module);
+				}
+
+			}
+		}
+	}
+
+	if(isDefined('application.muraExternalConfig.sites') && isStruct(application.muraExternalConfig.sites)){
+		sites=application.configBean.getBean('settingsManager').getSites();
+		for(s in sites){
+			if(isValid('variableName',s) && isDefined('application.muraExternalConfig.sites.#s#') && isStruct(application.muraExternalConfig.sites['#s#'])){
+				modules=application.muraExternalConfig.sites['#s#'];
+				for(m in modules){
+					if(isStruct(modules['#m#'])){
+						module=modules['#m#'];
+						module.object=m;
+						module.displayObjectFile="external/index.cfm";
+						module.external=true;
+						sites['#s#'].registerDisplayObject(argumentCollection=module);
+					}
+				}
+			}
+		}
+
+	}
+
 
 	application.sessionTrackingThrottle=false;
 

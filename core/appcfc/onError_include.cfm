@@ -41,7 +41,10 @@ For clarity, if you create a modified version of Mura CMS, you are not obligated
 modified version; it is your choice whether to do so, or to make such modified version available under the GNU General Public License
 version 2 without this exception.  You may, if you choose, apply this exception to your own modified versions of Mura CMS.
 --->
+<cftry>
 <cfheader statustext="An Error Occurred" statuscode="500">
+<cfcatch></cfcatch>
+</cftry>
 <cfscript>
 if ( isDefined('arguments.exception.rootcause.type') && arguments.exception.rootcause.type == 'coldfusion.runtime.AbortException' ) {
 	return;
@@ -65,7 +68,15 @@ if ( !request.muraTemplateMissing ) {
 				hasencodeforhtml=false;
 			}
 		}
-	writeLog( text=exception.stacktrace, file="exception", type="Error" );
+
+	local.logData={stacktrace=arguments.exception.stacktrace};
+
+	if(structKeyExists(arguments.exception,'message')){
+		local.logData.message=arguments.exception.message;
+	}
+
+	writeLog( text=serializeJSON(local.logData), file="exception", type="Error" );
+
 	if ( structKeyExists(application,"pluginManager") && structKeyExists(application.pluginManager,"announceEvent") ) {
 		if ( structKeyExists(request,"servletEvent") ) {
 			local.pluginEvent=request.servletEvent;

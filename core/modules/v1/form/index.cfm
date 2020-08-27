@@ -74,17 +74,17 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 			<cfset local.formJSON = deserializeJSON( local.formBean.getBody() )>
 
 			<cftry>
-				<!---<cfif structKeyExists(local.formJSON.form.formattributes,"muraormentities") and local.formJSON.form.formattributes.muraormentities eq true>--->
-				<cfset objectParams.render = "client" />
-				<cfset objectParams.async = "true"/>
-				<cfparam name="objectParams.view" default="form"/>
+			<!---<cfif structKeyExists(local.formJSON.form.formattributes,"muraormentities") and local.formJSON.form.formattributes.muraormentities eq true>--->
+			<cfset objectParams.render = "client" />
+			<cfset objectParams.async = "true"/>
+			<cfparam name="objectParams.view" default="form"/>
 
-	      <cfif len($.event('saveform'))>
+			<cfif len($.event('saveform'))>
 					<cfset $.event('fields','')>
 
 					<cfset objectParams.errors=$.getBean('dataCollectionBean')
-                .set($.event().getAllValues())
-                .submit($).getErrors()>
+						.set($.event().getAllValues())
+						.submit($).getErrors()>
 
 					<cfif not structCount(objectParams.errors)>
 						<cfset objectParams.responsemessage=$.renderEvent(eventName="onFormSubmitResponseRender",objectid=local.formBean.getContentID())>
@@ -101,48 +101,63 @@ version 2 without this exception.  You may, if you choose, apply this exception 
 						</cfif>
 					</cfif>
 
+
+
 					<cfif not len(objectParams.responsemessage)>
-						<cfset objectParams.responsemessage=$.setDynamicContent(local.formBean.getResponseMessage())>
+						<cfif local.formBean.getResponseChart()>
+							<cfset objectParams.responsemessage=trim($.dspObject_Include(thefile='datacollection/dsp_poll.cfm'))>
+						</cfif>
+						<cfset objectParams.responsemessage=objectParams.responsemessage & $.setDynamicContent(local.formBean.getResponseMessage())>
 					</cfif>
 				</cfif>
+
+				<cfloop collection="#objectParams#" item="local.param">
+      		<cfif listLast(local.param,'_') eq 'attachment' and not isValid('uuid',objectParams[local.param])>
+						<cfset structDelete(objectParams,local.param)>
+					</cfif>
+				</cfloop>
+
 			<cfelseif len($.event('validateform'))>
 				<cfparam name="objectparams.fields" default="">
 				<cfset objectParams.errors=$.getBean('dataCollectionBean')
-            .set($.event().getAllValues())
-            .validate($,$.event('fields')).getErrors()>
+				.set($.event().getAllValues())
+				.validate($,$.event('fields')).getErrors()>
 			<cfelseif request.muraApiRequest>
 				<cfscript>
 						objectParams.render = "client";
 				 		objectParams.async = "true";
 
 						 if(not arguments.RenderingAsRegion){
-	   					 if(isdefined('local.formJSON.form.fields')){
-	   						 for(b in local.formJSON.form.fields){
-								 	field=local.formJSON.form.fields[b];
-									if(structKeyExists(field,'value')){
-		   							 	local.formJSON.form.fields[b].value=$.setDynamicContent(field.value);
-								 	}
+							if(isdefined('local.formJSON.form.fields')){
+								for(b in local.formJSON.form.fields){
+										field=local.formJSON.form.fields[b];
+										if(structKeyExists(field,'value')){
+											local.formJSON.form.fields[b].value=$.setDynamicContent(field.value);
+										}
 
-									if(isDefined('field.fieldtype.isdata') && field.fieldtype.isdata==1){
-										local.formJSON.datasets['#field.datasetid#']=$.getBean('formBuilderManager').processDataset( $, local.formJSON.datasets['#field.datasetid#'] );
+										if(isDefined('field.fieldtype.isdata') && field.fieldtype.isdata==1){
+											local.formJSON.datasets['#field.datasetid#']=$.getBean('formBuilderManager').processDataset( $, local.formJSON.datasets['#field.datasetid#'] );
+										}
 									}
-								 }
-	   					 }
+							}
 
-							 request.cffpJS=true;
-	   					 objectParams.def=serializeJSON(local.formJSON);
-	   					 objectParams.ishuman=$.dspObject_Include(thefile='form/dsp_form_protect.cfm');
-					 	 }
+							request.cffpJS=true;
+							
+							objectParams.def=serializeJSON(local.formJSON);
 
-						 if(!this.layoutmanager && local.formBean.getDisplayTitle() > 0){
+							objectParams.ishuman=$.dspObject_Include(thefile='form/dsp_form_protect.cfm');
+					 	}
+
+						if(!this.layoutmanager && local.formBean.getDisplayTitle() > 0){
 						 	objectParams.label=local.formBean.get('title');
-					 	 }
+					 	}
 
-   					 objectParams.filename=local.formBean.get('filename');
-					 	 objectParams.name=local.formBean.get('title');
-   					 objectParams.responsemessage=local.formBean.get('responseMessage');
+   						objectParams.filename=local.formBean.get('filename');
+					 	objectParams.name=local.formBean.get('title');
+   					 	objectParams.responsemessage=local.formBean.get('responseMessage');
+						objectParams.responsechart=local.formBean.get('responsechart');
    				 </cfscript>
-			 </cfif>
+			</cfif>
 			<cfcatch>
 				<cfdump var="#cfcatch#">
 				<cfabort>

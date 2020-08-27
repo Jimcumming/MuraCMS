@@ -151,19 +151,20 @@ CKEDITOR.editorConfig = function( config )
 		];
 
 		config.toolbar_Basic = [
-			{name: 'group1', items: ['Bold','Italic','-','NumberedList','BulletedList','-','Link','Unlink']}
+			{name: 'group1', items: ['Bold','Italic','RemoveFormat','-','NumberedList','BulletedList','-','Link','Unlink']}
 		];
 
 		config.toolbar_FormBuilder = [
 			{name: 'group1', items: ['A11ychecker','Source']},
-			{name: 'group2', items: ['Bold','Italic','-','NumberedList','BulletedList','-','Link','Unlink','Format']}
+			{name: 'group2', items: ['Bold','Italic','RemoveFormat','-','NumberedList','BulletedList','-','Link','Unlink','Format']}
 		];
 
 		config.toolbar_htmlEditor = [
-			{name: 'group0', items: ['A11ychecker','Source']},
-			{name: 'group1', items: ['Cut','Copy','Paste','PasteText','PasteFromWord']},
-			{name: 'group2', items: ['Bold','Italic','-','NumberedList','BulletedList','-','Link','Unlink','-','Image']},
-			{name: 'group3', items: ['Selectlink','SelectComponent','Templates']},
+			{name: 'group0', items:['Styles','Format']},
+			{name: 'group1', items: ['A11ychecker','Source']},
+			{name: 'group2', items: ['Cut','Copy','Paste','PasteText','PasteFromWord']},
+			{name: 'group3', items: ['Bold','Italic','RemoveFormat','-','NumberedList','BulletedList','-','Link','Unlink','-','Image']},
+			{name: 'group4', items: ['Selectlink','SelectComponent','Templates']},
 		];
 
 		config.toolbar_bbcode = [
@@ -172,7 +173,18 @@ CKEDITOR.editorConfig = function( config )
 
 	<!--- /Toolbars --->
 
-	config.extraPlugins = 'SelectComponent,Selectlink,leaflet,tableresize,onchange,justify,find,bidi,div,showblocks,forms,templates,pagebreak,codemirror,widget,lineutils,dialog,oembed,sourcedialog,fakeobjects,dialogui,showprotected,balloonpanel,a11ychecker,dialogadvtab';
+	config.extraPlugins = 'SelectComponent,Selectlink,leaflet,tableresize,onchange,justify,find,bidi,div,showblocks,forms,templates,pagebreak,codemirror,widget,lineutils,dialog,oembed,sourcedialog,fakeobjects,dialogui,showprotected,balloonpanel,dialogadvtab,a11ychecker';
+
+	if(typeof jQuery == 'undefined'){
+		config.toolbar_QuickEdit[0].items.shift()
+		config.toolbar_htmlEditor[0].items.shift()
+		config.toolbar_FormBuilder[0].items.shift()
+		config.toolbar_Form[0].items.shift()
+		config.toolbar_Default[0].items.shift()
+		var ep=config.extraPlugins.split(",");
+		ep.pop();
+		config.extraPlugins=ep.join()
+	}
 
 	<cfif len($.siteConfig().getRazunaSettings().getApiKey())>
 		config.extraPlugins += ',razuna';
@@ -213,10 +225,10 @@ CKEDITOR.editorConfig = function( config )
 		var connectorpath = '#application.configBean.getContext()#/core/vendor/ckfinder/ckfinder.html';
 		config.filebrowserBrowseUrl = connectorpath;
 		config.filebrowserImageBrowseUrl = connectorpath + '?type=Images';
-		config.filebrowserUploadUrl = connectorpath;
-		config.filebrowserImageUploadUrl = connectorpath + '?type=Images';
+		config.filebrowserUploadUrl = '#application.configBean.getContext()#/core/vendor/ckfinder/core/connector/cfm/connector.cfm?command=QuickUpload&type=#URLEncodedFormat(session.siteid)#_User_Assets&currentFolder=%2Files%2F';
+		config.filebrowserImageUploadUrl ='#application.configBean.getContext()#/core/vendor/ckfinder/core/connector/cfm/connector.cfm?command=QuickUpload&type=#URLEncodedFormat(session.siteid)#_User_Assets&currentFolder=%2FImage%2F';
 	</cfif>
-	
+
 	<cfset secure=$.getBean('utility').isHTTPS()>
 
 	<!--- contentsCss --->
@@ -309,19 +321,31 @@ CKEDITOR.on( 'dialogDefinition', function( ev ) {
 			}
 
     	if (pwEl != null){ // if iframe/full edit
-				var editor = this.getParentEditor() // set up logic for iframe centering
-					,dlgFrameTop = parent.document.getElementById(window.name).offsetTop
-					,dlgScrollTop = $(top).scrollTop()
-					,dlgFrameOffset =  dlgFrameTop - dlgScrollTop
-					,dlgDocumentHeight = $(top).height()
-					,dlgPopupHeight = this.getSize().height
-					,dlgNewTop = (dlgDocumentHeight/2) - (dlgPopupHeight/2) - dlgFrameOffset
-					,objCurrentPos = this.getPosition();
-					if (dlgNewTop < 0) { // pad top if small iframe
-						dlgNewTop = 5;
-					}
-					this.move( objCurrentPos.x, dlgNewTop ,false ); // set the position
-			 	  this._.moved = 1; // prevent ck location memory
+				var currentPosition = this.getPosition();
+				var windowScrolledTo = $(top).scrollTop();
+				var modalContainerPosition = $(pwEl).parent().position();
+				var modalContainerHeight = $(pwEl).parent().height();
+				var dialogHeight = this.getSize().height;
+				var viewPortHeight = $(top).innerHeight();
+
+				// calculate the range the dialog can be
+				var modalContainerTopVisible = windowScrolledTo - modalContainerPosition.top <= 0;
+				var topEdge = modalContainerTopVisible ? 0 : windowScrolledTo - modalContainerPosition.top;
+				var modalContainerBottomVisible = (windowScrolledTo + viewPortHeight) >= (modalContainerPosition.top + modalContainerHeight);
+				var bottomEdge = modalContainerBottomVisible ? modalContainerHeight : (windowScrolledTo + viewPortHeight) - modalContainerPosition.top;
+
+				// position the dialog
+				if ( (currentPosition.y < topEdge )  ) { // align with the top edge of the modal continer
+					this.move(currentPosition.x,topEdge,false);
+				}
+
+				if ( currentPosition.y + dialogHeight > bottomEdge ) { // align with the bottom edge
+					// make sure not to move it out at the top
+					var newPosition = bottomEdge - dialogHeight < topEdge ? topEdge : bottomEdge - dialogHeight;
+					this.move(currentPosition.x,newPosition,false);
+				}
+
+			 	this._.moved = 1; // prevent ck location memory
     	}
     });
 });
